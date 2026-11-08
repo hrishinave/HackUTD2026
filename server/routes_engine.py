@@ -42,7 +42,9 @@ def _startup_load_sessions() -> None:
         try:
             with open(path) as f:
                 d = json.load(f)
-            session = InterviewSession.from_dict(d, brief=build_brief(d["interview_id"], d["interviewee"]), bank=load_bank())
+            if d["interview_id"] in sessions:  # startup hooks can fire twice; never replace a live session
+                continue
+            session =InterviewSession.from_dict(d, brief=build_brief(d["interview_id"], d["interviewee"]), bank=load_bank())
             runner = Runner(session)
             runner.total_calls = d.get("_calls_total", 0)
             sessions[session.interview_id] = runner
