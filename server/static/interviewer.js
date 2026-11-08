@@ -25,16 +25,26 @@ if (rec) {
     document.getElementById('recognition-status').textContent = 'Transcription: listening.';
   };
   rec.onresult = (event) => {
+    if (playing) return;
+    cancelAuto();
+    let receivedFinal = false;
+    let receivedInterim = false;
     for (let i = event.resultIndex; i < event.results.length; i++) {
       const result = event.results[i];
-      if (!result.isFinal || playing) continue;
+      if (!result.isFinal) {
+        receivedInterim = true;
+        continue;
+      }
       const text = result[0].transcript.trim();
       if (!text) continue;
       lastFinalT = now();
       send({ type: 'utterance', text, final: true, t_ms: lastFinalT });
       document.getElementById('last-final').textContent = text;
+      receivedFinal = true;
     }
+    if (receivedFinal && !receivedInterim) scheduleAuto();
   };
+  rec.onspeechstart = () => { if (!playing) cancelAuto(); };
   rec.onend = () => {
     recognitionActive = false;
     if (!running) return;
@@ -48,6 +58,7 @@ if (rec) {
   rec.onerror = (event) => {
     if (['not-allowed', 'service-not-allowed', 'audio-capture'].includes(event.error)) {
       running = false;
+      cancelAuto();
       clearTimeout(recognitionTimer);
       document.getElementById('recognition-status').textContent =
         'Transcription: microphone permission denied or input unavailable. Check Chrome’s MacBook microphone selection before reloading.';
@@ -79,7 +90,23 @@ function startRecognition() {
   }
 }
 
-let queue = { based_on_t_ms: 0, questions: [] };
+const QUEUE_STORAGE_KEY = `fitcheck.queue.${INTERVIEW_ID}`;
+function restoreQueue() {
+  const empty = { based_on_t_ms: 0, questions: [] };
+  try {
+    const raw = window.localStorage.getItem(QUEUE_STORAGE_KEY);
+    if (!raw) return empty;
+    const saved = JSON.parse(raw);
+    if (!Number.isFinite(saved.based_on_t_ms) || !Array.isArray(saved.questions)) return empty;
+    if (!saved.questions.every(q => q && ['id', 'cue', 'text', 'target'].every(key => typeof q[key] === 'string'))) return empty;
+    return { based_on_t_ms: saved.based_on_t_ms, questions: saved.questions.slice(0, 3) };
+  } catch (error) {
+    return empty;
+  }
+}
+
+let queue = restoreQueue();
+let queueReady = false;
 let lastPlayed = null;
 const clips = Object.create(null);
 const player = new Audio();
@@ -87,6 +114,28 @@ let lastTapToAudioMs = null;
 let playbackSerial = 0;
 let playbackTailTimer;
 let tapPending = false;
+let autoTimer;
+let autoDue = null;
+
+function cancelAuto() {
+  clearTimeout(autoTimer);
+  autoDue = null;
+}
+
+function scheduleAuto() {
+  cancelAuto();
+  if (!document.getElementById('auto-mode')?.checked) return;
+  autoDue = Date.now() + 2000;
+  autoTimer = setTimeout(maybePlayAuto, 2000);
+}
+
+function maybePlayAuto() {
+  if (autoDue === null || Date.now() < autoDue || !document.getElementById('auto-mode')?.checked) return;
+  if (!sessionStarted || !queueReady || !running || playing || tapPending) return;
+  if (queue.questions[0]?.cue !== 'Contradiction:') return;
+  cancelAuto();
+  onTap('play');
+}
 
 function render() {
   const rows = queue.questions.map((question) => {
@@ -102,17 +151,24 @@ function render() {
   });
   document.getElementById('queue').replaceChildren(...rows);
   document.getElementById('queue-empty').hidden = rows.length > 0;
-  document.getElementById('ask').disabled = !sessionStarted || rows.length === 0;
+  document.getElementById('ask').disabled = !sessionStarted || !queueReady || rows.length === 0;
   document.getElementById('latency').textContent = lastTapToAudioMs === null
     ? 'Last tap to audio: —'
     : `Last tap to audio: ${lastTapToAudioMs} ms`;
+  try {
+    window.localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue));
+  } catch (error) {
+    // The live interview still works when browser storage is unavailable.
+  }
 }
 
 let onServer = (msg) => {
   console.log('server', msg);
   if (msg.type === 'queue') {
     queue = { based_on_t_ms: msg.based_on_t_ms, questions: msg.questions.slice() };
+    queueReady = true;
     render();
+    maybePlayAuto();
   } else if (msg.type === 'audio') {
     clips[msg.question_id] = `data:audio/mpeg;base64,${msg.mp3_b64}`;
   }
@@ -245,7 +301,8 @@ function send(obj) {
 }
 
 let onTap = async (action) => {
-  if (!sessionStarted || !['play', 'next', 'repeat'].includes(action)) return;
+  if (!sessionStarted || !queueReady || !['play', 'next', 'repeat'].includes(action)) return;
+  cancelAuto();
   const tapT = now();
   console.log('tap', action);
   document.getElementById('tap-output').textContent =
@@ -310,6 +367,8 @@ document.getElementById('start').onclick = async () => {
   starting = true;
   T0 = Date.now();
   lastFinalT = 0;
+  queueReady = false;
+  cancelAuto();
   outbox.length = 0;
   const start = document.getElementById('start');
   const interviewee = document.getElementById('interviewee');
@@ -351,6 +410,8 @@ document.getElementById('start').onclick = async () => {
   }
 };
 document.getElementById('ask').onclick = () => onTap('play');
+const autoToggle = document.getElementById('auto-mode');
+if (autoToggle) autoToggle.onchange = cancelAuto;
 document.addEventListener('keydown', (event) => {
   if (event.code !== 'Space' || event.repeat) return;
   // Let focused buttons keep their native keyboard activation.
@@ -359,3 +420,4 @@ document.addEventListener('keydown', (event) => {
   event.preventDefault();
   onTap('play');
 });
+render();
