@@ -4,7 +4,7 @@ Date: 2026-11-08. Operator: Hrishi (C). Laptop: the demo MacBook, with the Meta 
 
 ## Status
 
-**STOPPED — FAIL: T2 (wrong microphone).** Hrishi reported “its using glasses as mic” during the T2 input check. The agent instructed Hrishi to stop `c1Mic` tracks immediately; release has not yet been confirmed. No further device tests should run until the MacBook input is restored and explicitly verified. T1's exact counts and timing, T3, and T4 remain unconfirmed. Do not request `gate/C1-devices` yet.
+**T2 RETRY PENDING after a failed attempt.** Hrishi reported “its using glasses as mic” during the first T2 input check. After instructions to stop capture and set Input = MacBook Microphone / Output = glasses, Hrishi replied “done”. Routing recovery is operator-reported; a retry must explicitly select and verify the physical MacBook device ID before voice playback. T1's exact counts and timing, T3, and T4 remain unconfirmed. Do not request `gate/C1-devices` yet.
 
 ## Preparation
 
@@ -18,9 +18,9 @@ Date: 2026-11-08. Operator: Hrishi (C). Laptop: the demo MacBook, with the Meta 
 | Test | Result | Notes |
 |---|---|---|
 | T1: taps | WORKING — details pending | Hrishi's response to the T1 instructions: “it works”. Need explicit confirmation of `play`, `next`, `repeat`, respectively, 10/10 each within 0.5 s before marking PASS. |
-| T2: voice with microphone in use | FAIL — wrong microphone | Hrishi reported “its using glasses as mic” after the default-device capture probe. Instructed to stop tracks immediately; stop not yet confirmed. Voice quality and taps with the correct microphone remain untested. |
+| T2: voice with microphone in use | FAIL on first attempt; retry pending | First default-device probe selected the glasses. Hrishi replied “done” after instructions to stop capture and restore MacBook input / glasses output. Explicit-device retry, voice quality, and taps with the correct microphone remain untested. |
 | T3: transcription at 0.7 m | PENDING | Need 10 role-play lines, with “prior auth”, “notes”, “denial”, and “coverage” transcribed correctly. |
-| T4: call-mode guard | BLOCKED | T2 selected the glasses microphone. System Sound routing itself has not been visually verified; restore and verify MacBook input before retesting. |
+| T4: call-mode guard | PENDING | Hrishi reports correcting Input = MacBook Microphone / Output = glasses. Still need verification that routing stays correct during the explicit-device T2 retry. |
 
 ### T1: taps
 
@@ -32,10 +32,20 @@ If T1 fails, stop and tell Hrishi. The plan permits one retry after closing othe
 
 ### T2 and T4: microphone, voice, and route
 
-**Do not rerun the default-device probe below:** it selected the glasses microphone on this laptop. It is retained as the record of the failed test. Before retrying, Hrishi must restore Input = MacBook Microphone and Output = glasses, and the next capture must select the actual MacBook device ID explicitly. Do not change system audio settings without Hrishi's approval.
+**First attempt failed:** requesting `deviceId: { exact: 'default' }` selected the glasses microphone. Do not use the default-device probe again. Hrishi reports restoring Input = MacBook Microphone and Output = glasses. Do not change system audio settings without Hrishi's approval.
+
+For the retry, select the actual built-in microphone by its device ID. Stop old test tracks first. Chrome already has microphone permission from the first test; if labels are missing or exactly one physical built-in microphone cannot be identified, this probe stops without opening any microphone. Report the error rather than falling back to the default.
 
 ```js
-window.c1Mic = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: 'default' } } });
+window.c1Mic?.getTracks().forEach(track => track.stop());
+window.c1MacInputs = (await navigator.mediaDevices.enumerateDevices()).filter(device =>
+  device.kind === 'audioinput' && !['default', 'communications'].includes(device.deviceId) &&
+  /MacBook.*Microphone|Built[- ]in Microphone/i.test(device.label)
+);
+if (c1MacInputs.length !== 1) throw new Error('Cannot identify one MacBook microphone. Stop and report this.');
+window.c1Mic = await navigator.mediaDevices.getUserMedia({
+  audio: { deviceId: { exact: c1MacInputs[0].deviceId } }
+});
 console.log('T2 input:', c1Mic.getAudioTracks()[0].label);
 ```
 
@@ -101,4 +111,4 @@ After implementation:
 - Automated launch of native Google Chrome timed out; subsequent app inventory still showed Chrome not running. Hrishi must open Chrome for device tests. This is not a glasses-test result.
 - Before the skeleton commit, `git status` contained only the four C1 files; root `CLAUDE.md`, `AGENTS.md`, and `.env` were ignored and absent from status.
 
-T2 failed its microphone check and testing is stopped. T1's exact counts and latency, T3, and T4 remain pending. Do not treat the software checks as `gate/C1-devices` approval.
+T2 failed its first microphone check; an explicit-device retry is pending after operator-reported routing recovery. T1's exact counts and latency, T3, and T4 remain pending. Do not treat the software checks as `gate/C1-devices` approval.
