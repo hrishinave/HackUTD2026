@@ -21,9 +21,11 @@ Use this when a teammate plays this person in rehearsal. This is the main demo i
 
 - **Coverage changes (RETRO-ELIG):** you never mention this on your own. Only when asked something like "What happens when a patient's coverage changes after the visit?", answer: "Oh, that. If coverage changes after the visit, it lands in my queue and I re-run eligibility." (C-04 evidence; ideally an answer to the AI code-gap question Q-19)
 - **The PA-NUM field:** if asked about it: "There's a field for it? I've never used it. The system doesn't care what's in there."
+- **Stuck claims (U-2):** if asked what happens when a claim gets stuck or stays pending: "If a claim sits pending more than 30 days I phone the payer and write it on a sticky note." (No event records payer calls, so contract drafting (D5) should make this an open loop and suggest what to instrument.)
 
 ## Cues the agent should pick up
 
 - "Or sometimes just 'see fax'" and "mostly just write 'see fax'" (an inconsistency, and a contradiction with clerk 1).
 - "I've never used it" (a ghost feature in the legacy app).
 - Silence about coverage changes until asked (a hidden rule only the code reveals).
+- "I phone the payer and write it on a sticky note" (a real requirement no event can measure yet: U-2).

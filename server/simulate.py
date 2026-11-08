@@ -59,6 +59,9 @@ COVERAGE_CHANGES_PER_CLERK_WEEK = 5
 DENIAL_VIEWS_PER_SPECIALIST_WEEK = 12
 DURATION_SPREAD = 0.25                  # log-normal sigma around the weekly median
 LAUNCH = datetime(2026, 9, 7, tzinfo=timezone.utc)  # Monday; week 1 starts here
+CLAIMS_EXPORT_LEGACY_P = 0.95           # U-1 (D5): one Friday claims-list export per clerk-week in the old system
+CLAIMS_EXPORT_SECOND_P = 0.05           # ...and occasionally a second one
+CLAIMS_EXPORT_POST_P = 0.10             # the new system has a weekly report, so the export mostly stops
 PA_CODES = ["70553", "72148", "74177"]  # imaging procedures that need prior auth
 OTHER_CODES = ["99213", "99214", "20610", "93000"]
 
@@ -170,6 +173,24 @@ def _specialist_week(rng, seed, week, i, actor, v, out):
                           {"source_view": "denials"}, week))
 
 
+def _clerk_claims_exports(seed, week, i, actor, out):
+    """U-1 (Task D5): clerks' weekly claims-list export to Excel for the practice manager.
+
+    Uses its own random stream, so adding these events leaves every other simulated event exactly as before
+    (the D2/D3 tests are calibrated on seed 7's main stream).
+    """
+    rng2 = random.Random(f"{seed}-claims-export-{i}-{week}")
+    friday = _week_start(week) + timedelta(days=4, hours=15)
+    session = _h(f"{seed}-session-{actor}-{week}-4", 12)
+    if week < 0:
+        n = (1 if rng2.random() < CLAIMS_EXPORT_LEGACY_P else 0) + (1 if rng2.random() < CLAIMS_EXPORT_SECOND_P else 0)
+    else:
+        n = 1 if rng2.random() < CLAIMS_EXPORT_POST_P else 0
+    for k in range(n):
+        t = friday + timedelta(minutes=30 * k, seconds=rng2.randrange(0, 1200))
+        out.append(_event("export_csv", t, "billing_clerk", actor, session, None, {"source_view": "claims"}, week))
+
+
 def _sort_key(e):
     return (e["ts"], e["event"], e["actor_hash"], e["claim_id_hash"] or "")
 
@@ -187,6 +208,7 @@ def generate(seed: int, scenario: dict) -> tuple[list[dict], list[dict]]:
         out = post if week > 0 else legacy
         for i, actor in enumerate(clerks):
             _clerk_week(rng, seed, week, i, actor, v, out)
+            _clerk_claims_exports(seed, week, i, actor, out)
         for i, actor in enumerate(specialists):
             _specialist_week(rng, seed, week, i, actor, v, out)
     legacy.sort(key=_sort_key)
@@ -217,7 +239,7 @@ def legacy_facts(events: list[dict]) -> dict:
     triggers = {e["claim_id_hash"]: e["ts"] for e in events if e["event"] == "coverage_changed"}
     checks = {e["claim_id_hash"]: e["ts"] for e in events if e["event"] == "eligibility_checked"}
     on_time = sum(1 for c, t in triggers.items() if c in checks and secs(t, checks[c]) <= 48 * 3600)
-    exports = sum(1 for e in events if e["event"] == "export_csv")
+    exports = sum(1 for e in events if e["event"] == "export_csv" and e["props"].get("source_view") == "denials")
     person_weeks = len({(e["actor_hash"], e["week"]) for e in events if e["role"] == "denial_specialist"})
     weeks = sorted({e["week"] for e in events})
     return {
