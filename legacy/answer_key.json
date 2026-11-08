@@ -1,0 +1,14 @@
+{"rules": [
+  {"id": "PA-SCAN", "plain": "Prior-auth claims accepted only if notes contain 'AUTH'", "hidden": false, "roles": ["billing_clerk"], "contract": "C-01"},
+  {"id": "RETRO-ELIG", "plain": "Coverage change after date of service routes claim to clerk queue", "hidden": true, "roles": ["billing_clerk"], "contract": "C-04"},
+  {"id": "MOD-25", "plain": "Claims without modifier 25 on same-day E/M are accepted", "hidden": true, "roles": ["billing_clerk", "medical_coder"], "contract": null},
+  {"id": "TF-365", "plain": "Reject claims filed over 365 days after date of service", "hidden": false, "roles": ["billing_clerk"], "contract": null},
+  {"id": "PAYER-TX017", "plain": "Payer TX017 skips the duplicate edit", "hidden": true, "roles": ["billing_clerk"], "contract": null},
+  {"id": "DUP-CHK", "plain": "Duplicate claim check on patient, date, procedure", "hidden": false, "roles": ["billing_clerk"], "contract": null},
+  {"id": "DEAD-PATH", "plain": "Paper-claim branch never executes", "hidden": true, "roles": [], "contract": null}],
+ "contradictions": [
+  {"id": "X-1", "kind": "person_vs_code", "person": "billing_clerk_1", "says": "Claims without modifier 25 always get rejected", "truth": "MOD-25 accepts them"},
+  {"id": "X-2", "kind": "person_vs_person", "a": "billing_clerk_1: auth number goes in notes", "b": "billing_clerk_2: we just write 'see fax'", "truth": "both happen"}],
+ "doc_diffs": [
+  {"id": "DD-1", "manual_says": "Timely filing limit is 180 days", "code_does": "TF-365 uses 365 days"},
+  {"id": "DD-2", "manual_says": "Prior-auth number goes in field PA-NUM", "code_does": "PA-NUM is never read; PA-SCAN reads notes"}]}

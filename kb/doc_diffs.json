@@ -1,0 +1,6 @@
+{"doc_diffs": [
+  {"id": "DD-1", "manual_says": "Timely filing limit is 180 days", "code_does": "TF-365 uses 365 days",
+   "manual_location": "legacy/docs/user_manual_2009.md, section 4.2", "code_location": {"file": "legacy/CLMEDIT.cbl", "paragraph": "2200-TIMELY-FILING"}},
+  {"id": "DD-2", "manual_says": "Prior-auth number goes in field PA-NUM", "code_does": "PA-NUM is never read; PA-SCAN reads notes",
+   "manual_location": "legacy/docs/user_manual_2009.md, section 5.1", "code_location": {"file": "legacy/CLMEDIT.cbl", "paragraph": "2100-PA-SCAN"}}
+]}
