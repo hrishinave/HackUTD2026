@@ -1,11 +1,18 @@
 """Engine routes: client WebSocket, interviews, contracts, settings, pages (except /claim)."""
+import asyncio
+import json
 import logging
 import os
+import time
+from collections import deque
 
 from fastapi import APIRouter, Body, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
+from server import kb, llm
 from server import settings as st
+from server.engine import InterviewSession
+from server.kb import build_brief, load_bank
 
 log = logging.getLogger("fitcheck.engine")
 
@@ -36,46 +43,241 @@ def post_settings(body: dict = Body(...), x_admin_token: str | None = Header(def
         raise HTTPException(status_code=422, detail=str(e))
 
 STATIC_DIR = "server/static"
+CONTRACTS_PATH = "contracts/medicare_contracts.json"
 
-# interview_id -> per-session state (fake for E1; InterviewSession from E3)
-sessions: dict[str, dict] = {}
+CALLS_PER_MINUTE = 30
+CALLS_PER_INTERVIEW = 800
+BOOK_RESERVE_PER_MINUTE = 10    # bookkeeping stops this far below the per-minute cap
+BOOK_RESERVE_TOTAL = 60         # ... and this far below the per-interview cap
+TICK_S = 0.1
 
 
-def _fake_queue(t_ms: int) -> dict:
-    return {
-        "type": "queue",
-        "based_on_t_ms": t_ms,
-        "questions": [
-            {
-                "id": "Q-1",
-                "bank_id": None,
-                "cue": "Detail:",
-                "text": "Can you walk me through a normal claim?",
-                "target": "C-02.current_practice",
-                "audio_url": None,
-            }
-        ],
-    }
+class Runner:
+    """Timing, sockets and in-flight LLM calls for one InterviewSession."""
+
+    def __init__(self, session: InterviewSession):
+        self.session = session
+        self.sockets: set[WebSocket] = set()
+        self.loop_task: asyncio.Task | None = None
+        self.q_task: asyncio.Task | None = None
+        self.book_task: asyncio.Task | None = None
+        self.call_times: deque[float] = deque()
+        self.total_calls = 0
+        self.skipped_book = 0
+        # interview clock: t_ms of the latest utterance and the monotonic time it arrived
+        self.clock_t_ms = 0
+        self.clock_mono = time.monotonic()
+
+    def now_ms(self) -> int:
+        return self.clock_t_ms + int((time.monotonic() - self.clock_mono) * 1000)
+
+    def sync_clock(self, t_ms: int) -> None:
+        if t_ms >= self.clock_t_ms:
+            self.clock_t_ms, self.clock_mono = t_ms, time.monotonic()
+
+    def _recent_calls(self) -> int:
+        cutoff = time.monotonic() - 60
+        while self.call_times and self.call_times[0] < cutoff:
+            self.call_times.popleft()
+        return len(self.call_times)
+
+    def _count_call(self) -> None:
+        self.call_times.append(time.monotonic())
+        self.total_calls += 1
+
+    def can_question(self) -> bool:
+        # Question calls are never skipped for bookkeeping's sake; they stop only at the hard caps.
+        return self._recent_calls() < CALLS_PER_MINUTE and self.total_calls < CALLS_PER_INTERVIEW
+
+    def can_book(self) -> bool:
+        return (self._recent_calls() < CALLS_PER_MINUTE - BOOK_RESERVE_PER_MINUTE
+                and self.total_calls < CALLS_PER_INTERVIEW - BOOK_RESERVE_TOTAL)
+
+    async def broadcast(self, msg: dict) -> None:
+        for ws in list(self.sockets):
+            try:
+                await ws.send_json(msg)
+            except Exception:
+                self.sockets.discard(ws)
+
+    async def send_queue(self) -> None:
+        await self.broadcast(self.session.queue_message())
+
+    def ensure_loop(self) -> None:
+        if self.loop_task is None or self.loop_task.done():
+            self.loop_task = asyncio.create_task(self._loop())
+
+    async def _loop(self) -> None:
+        try:
+            while self.sockets:
+                if self.session.due_for_call(self.now_ms()):
+                    self._trigger()
+                await asyncio.sleep(TICK_S)
+        except asyncio.CancelledError:
+            pass
+
+    def _trigger(self) -> None:
+        user_input, based_on = self.session.begin_call()
+        if self.can_question():
+            if self.q_task and not self.q_task.done():
+                self.q_task.cancel()
+            self._count_call()
+            self.q_task = asyncio.create_task(self._questions(user_input, based_on))
+        else:
+            log.warning("%s question call capped (%s total)", self.session.interview_id, self.total_calls)
+        if self.book_task is None or self.book_task.done():
+            if self.can_book():
+                self._count_call()
+                self.book_task = asyncio.create_task(self._bookkeeping(user_input))
+            else:
+                self.skipped_book += 1
+
+    async def _questions(self, user_input: str, based_on: int) -> None:
+        try:
+            items = await llm.complete_questions(self.session.brief, user_input)
+        except asyncio.CancelledError:
+            return
+        except llm.LLMRefused:
+            log.warning("%s question call refused; keeping queue", self.session.interview_id)
+            items = []
+        except Exception as e:  # timeout, API error, bad JSON: keep the old queue
+            log.warning("%s question call failed (%s: %s); keeping queue", self.session.interview_id, type(e).__name__, e)
+            items = []
+        before = self.session.queue_message()
+        self.session.apply_questions(items, self.now_ms(), based_on)
+        after = self.session.queue_message()
+        if items or after != before:
+            await self.send_queue()
+
+    async def _bookkeeping(self, user_input: str) -> None:
+        try:
+            result = await llm.complete_bookkeeping(self.session.brief, user_input)
+        except asyncio.CancelledError:
+            return
+        except Exception as e:
+            log.warning("%s bookkeeping failed (%s: %s)", self.session.interview_id, type(e).__name__, e)
+            return
+        self.session.apply_bookkeeping(result)
+
+    async def refill_if_empty(self) -> None:
+        if not self.session.queue:
+            self.session.apply_questions([], self.now_ms(), self.session.based_on_t_ms)
+            if self.session.queue:
+                await self.send_queue()
+
+    def stop(self) -> None:
+        for t in (self.loop_task, self.q_task, self.book_task):
+            if t and not t.done():
+                t.cancel()
+
+
+# interview_id -> Runner (holds the InterviewSession)
+sessions: dict[str, Runner] = {}
+
+
+def _create_session(interview_id: str, interviewee: str) -> Runner:
+    """Build the brief and session. KeyError if the interviewee is unknown."""
+    brief = build_brief(interview_id, interviewee)
+    plan = kb.load_people()[interviewee]["plan"]
+    session = InterviewSession(interview_id, interviewee, brief=brief, bank=load_bank(), plan=plan)
+    session.apply_questions([], 0, 0)  # never empty: first plan question is ready before any speech
+    old = sessions.get(interview_id)
+    runner = Runner(session)
+    if old:
+        old.stop()
+        runner.sockets = old.sockets
+    sessions[interview_id] = runner
+    return runner
+
+
+def _default_interviewee(interview_id: str) -> str:
+    people = kb.load_people()
+    for key in sorted(people):
+        if people[key].get("interview_id") == interview_id:
+            return key
+    return "billing_clerk_2"
+
+
+@router.post("/api/interviews/{interview_id}/start")
+async def start_interview(interview_id: str, body: dict = Body(default={})):
+    interviewee = body.get("interviewee") or _default_interviewee(interview_id)
+    try:
+        runner = _create_session(interview_id, interviewee)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"unknown interviewee: {interviewee}")
+    warm = "ok"
+    try:
+        await llm.warm_up(runner.session.brief)
+        runner.total_calls += 2
+    except Exception as e:  # the interview still runs; the first real call just pays the cache write
+        warm = f"failed: {type(e).__name__}"
+        log.warning("%s warm-up failed: %s", interview_id, e)
+    if runner.sockets:
+        runner.ensure_loop()
+    await runner.send_queue()
+    log.info("%s started for %s (brief ~%d tokens, warm-up %s)", interview_id, interviewee, len(runner.session.brief) // 4, warm)
+    return {"ok": True, "interview_id": interview_id, "interviewee": interviewee, "warm_up": warm}
+
+
+@router.get("/api/interviews/{interview_id}/state")
+def interview_state(interview_id: str):
+    runner = sessions.get(interview_id)
+    if not runner:
+        raise HTTPException(status_code=404, detail="interview not started")
+    return {**runner.session.state(),
+            "calls": {"total": runner.total_calls, "last_minute": runner._recent_calls(),
+                      "bookkeeping_skipped": runner.skipped_book}}
+
+
+@router.get("/api/contracts")
+def get_contracts():
+    # E4 merges live interview evidence into these.
+    with open(CONTRACTS_PATH) as f:
+        return json.load(f)["contracts"]
 
 
 @router.websocket("/ws/client/{interview_id}")
 async def client_ws(ws: WebSocket, interview_id: str):
     await ws.accept()
-    session = sessions.setdefault(interview_id, {"played": []})
+    runner = sessions.get(interview_id)
+    if runner is None:
+        interviewee = _default_interviewee(interview_id)
+        log.warning("%s socket opened before /start; starting for %s without warm-up", interview_id, interviewee)
+        runner = _create_session(interview_id, interviewee)
+    runner.sockets.add(ws)
+    runner.ensure_loop()
     try:
+        if runner.session.queue:
+            await ws.send_json(runner.session.queue_message())
         while True:
             msg = await ws.receive_json()
+            runner = sessions.get(interview_id, runner)  # a /start may have replaced it
+            runner.sockets.add(ws)
+            runner.ensure_loop()
             kind = msg.get("type")
-            if kind == "utterance" and msg.get("final", True):
-                await ws.send_json(_fake_queue(int(msg.get("t_ms", 0))))
+            if kind == "utterance":
+                if msg.get("final", True):
+                    t_ms = int(msg.get("t_ms", 0))
+                    runner.sync_clock(t_ms)
+                    runner.session.add_utterance(str(msg.get("text", "")), t_ms)
             elif kind == "played":
-                session["played"].append(msg.get("question_id"))
-                log.info("played %s %s", interview_id, msg.get("question_id"))
-                await ws.send_json({"type": "ack", "of": "played", "question_id": msg.get("question_id")})
-            elif kind in ("hello", "tap", "metric"):
-                log.info("%s %s %s", interview_id, kind, msg)
+                qid = str(msg.get("question_id", ""))
+                runner.session.mark_played(qid, int(msg.get("t_ms", runner.now_ms())))
+                log.info("played %s %s", interview_id, qid)
+                await ws.send_json({"type": "ack", "of": "played", "question_id": qid})
+                await runner.refill_if_empty()
+            elif kind == "metric":
+                log.info("metric %s %s=%s", interview_id, msg.get("name"), msg.get("value"))
+            elif kind in ("hello", "tap"):
+                log.info("%s %s %s", interview_id, kind, {k: v for k, v in msg.items() if k != "type"})
     except WebSocketDisconnect:
         pass
+    finally:
+        r = sessions.get(interview_id)
+        if r:
+            r.sockets.discard(ws)
+            if not r.sockets:
+                r.stop()
 
 
 def _page(name: str) -> FileResponse:
