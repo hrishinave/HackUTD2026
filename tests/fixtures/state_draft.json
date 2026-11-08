@@ -1,0 +1,10 @@
+{"interviewee": "billing_clerk_1", "label": "Billing clerk 1",
+ "transcript": [
+  {"t_ms": 60000, "text": "Thanks for meeting with me. Can you walk me through your week?"},
+  {"t_ms": 70000, "text": "Sure. Most of my day is claims. Every Friday I export the claims list to Excel for the practice manager."},
+  {"t_ms": 100000, "text": "If it needs prior auth I put the number in the notes, or sometimes just see fax."},
+  {"t_ms": 305000, "text": "If a claim sits pending more than 30 days I phone the payer and write it on a sticky note."}],
+ "played": [
+  {"id": "Q-3", "bank_id": "PQ-07", "text": "Where does the prior auth number go today?", "target": "C-01.current_practice", "reason": "r", "origin": "ai", "played_at": 95000},
+  {"id": "Q-4", "bank_id": null, "text": "What happens when a claim gets stuck?", "target": "plan", "reason": "fallback plan", "origin": "plan", "played_at": 300000}],
+ "slot_fills": {}, "contradictions": []}

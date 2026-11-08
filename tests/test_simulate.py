@@ -19,6 +19,13 @@ def test_c01_planted_drift_present():
     assert rate(2) > 0.9 and rate(8) < 0.6   # week 8 planted at 0.50: far enough from 0.6 that sampling noise can't fail it
 
 
+def test_claims_exports_do_not_change_existing_c01_rates():
+    _, post = generate(7, DEFAULT_SCENARIO)
+    wk = lambda w: [e for e in post if e["event"] == "claim_submitted" and e["props"]["requires_prior_auth"] and e["week"] == w]
+    rate = lambda w: sum(e["props"]["prior_auth_number_filled"] for e in wk(w)) / len(wk(w))
+    assert rate(2) > 0.9 and rate(8) < 0.6
+
+
 def test_role_sizes_meet_privacy_floor():
     _, post = generate(7, DEFAULT_SCENARIO)
     clerks = {e["actor_hash"] for e in post if e["role"] == "billing_clerk"}

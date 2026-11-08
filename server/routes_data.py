@@ -3,6 +3,7 @@
 Owner: AK (role D). Paths and shapes are frozen in plan section 10.2. Settings and tokens
 are read on every request so tests can change them after import.
 """
+import asyncio
 import json
 import os
 import re
@@ -11,6 +12,8 @@ from pathlib import Path
 from fastapi import APIRouter, Body, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from server import contract_draft as cd
+from server import contracts as ct
 from server import drift as dr
 from server import settings as st
 from server import simulate as sim
@@ -33,7 +36,20 @@ CONTRADICTION_MATCHERS = {
 
 
 def _contracts() -> list[dict]:
-    return load_catalog(CATALOG_PATH)["contracts"]
+    """Catalog contracts plus approved drafted contracts (D5), so drift, findings and payloads include them."""
+    return ct.load_all_contracts()
+
+
+def _settings() -> dict:
+    """Client settings, with approved drafted contracts (D5) counted as watched.
+
+    server/settings.py only accepts the five catalog IDs in contracts_watched, so an approved C-06 could never be
+    watched. Approving a draft is the team choosing to watch it; the client's drift_enabled switch still governs all.
+    """
+    s = dict(st.load_settings())
+    watched = list(s.get("contracts_watched", []))
+    s["contracts_watched"] = watched + [c["id"] for c in ct._approved()["contracts"] if c["id"] not in watched]
+    return s
 
 
 def _events() -> list[dict]:
@@ -62,7 +78,7 @@ def simulate(body: dict | None = Body(default=None), x_admin_token: str | None =
 @router.get("/api/drift")
 def drift():
     """{"enabled": false} when drift monitoring is off; else weekly rows and status per watched contract."""
-    s = st.load_settings()
+    s = _settings()
     if not s["drift_enabled"]:
         return {"enabled": False}
     events = _events()
@@ -94,7 +110,7 @@ def drift():
 @router.get("/api/findings")
 def get_findings():
     """Findings for watched, drifting contracts. [] when drift monitoring is off."""
-    return dr.findings(_contracts(), _events(), st.load_settings())
+    return dr.findings(_contracts(), _events(), _settings())
 
 
 # ---------- Software Factory (simulated) ----------
@@ -102,7 +118,7 @@ def get_findings():
 @router.get("/api/findings/{finding_id}/sf-payload")
 def sf_payload(finding_id: str):
     """The Feedback payload for one finding. 403 when the client has not allowed sending to Software Factory."""
-    s = st.load_settings()
+    s = _settings()
     if not s["send_to_sf"]:
         raise HTTPException(status_code=403, detail="sending to Software Factory is turned off in Client settings")
     for f in dr.findings(_contracts(), _events(), s):
@@ -127,7 +143,75 @@ async def feedback_stub(request: Request):
     return {"feedback_number": n}
 
 
+# ---------- contract drafting (Task D5) ----------
+
+_draft_locks: dict[str, asyncio.Lock] = {}
+
+
+@router.post("/api/drafts")
+async def run_drafts(body: dict = Body(...)):
+    """Draft contracts from one interview's saved state. Body: {"interview_id": "INT-01"}."""
+    interview_id = str((body or {}).get("interview_id", ""))
+    if not re.fullmatch(r"INT-\d{2}", interview_id):
+        raise HTTPException(status_code=422, detail="interview_id must look like INT-01")
+    if not (Path(cd.STATE_DIR) / f"{interview_id}.json").exists():
+        raise HTTPException(status_code=404, detail=f"no saved interview state for {interview_id}")
+    lock = _draft_locks.setdefault(interview_id, asyncio.Lock())
+    if lock.locked():
+        raise HTTPException(status_code=409, detail=f"already drafting {interview_id}")
+    async with lock:
+        try:
+            return await cd.draft_contracts(interview_id)
+        except Exception as exc:  # model call failed, refused or was cut off; saved drafts are unchanged
+            return JSONResponse(status_code=502, content={"error": f"drafting failed: {type(exc).__name__}: {exc}"})
+
+
+@router.get("/api/drafts")
+def get_drafts(interview_id: str | None = None, status: str | None = None):
+    return cd.load_drafts(interview_id, status)
+
+
+def _decide(fn, draft_id: str, token: str | None, *args):
+    _require_admin(token)
+    try:
+        return fn(draft_id, st.load_settings().get("admin", "admin"), *args)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"unknown draft: {draft_id}")
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
+@router.post("/api/drafts/{draft_id}/approve")
+def approve_draft(draft_id: str, x_admin_token: str | None = Header(default=None)):
+    return _decide(cd.approve_draft, draft_id, x_admin_token)
+
+
+@router.post("/api/drafts/{draft_id}/reject")
+def reject_draft(draft_id: str, body: dict | None = Body(default=None), x_admin_token: str | None = Header(default=None)):
+    return _decide(cd.reject_draft, draft_id, x_admin_token, (body or {}).get("reason"))
+
+
 # ---------- eval ----------
+
+def _draft_text(rec: dict) -> str:
+    body = rec["contract"] if rec["kind"] == "contract" else rec["open_loop"]
+    return (body["requirement"]["statement"] + " " + " ".join(e["quote"] for e in body["evidence"])).lower()
+
+
+def _uncovered_scores(key: dict) -> dict:
+    """D5: did drafting find the planted requirements no existing contract covers, and classify them right?"""
+    planted = key.get("uncovered_requirements", [])
+    drafts = cd.load_drafts()
+    found, right = [], 0
+    for u in planted:
+        hits = [r for r in drafts if sum(k in _draft_text(r) for k in u["keywords"]) >= 2]
+        if hits:
+            found.append(u["id"])
+            if any((r["kind"] == "contract") == u["measurable"] for r in hits):
+                right += 1
+    return {"uncovered_found": len(found), "uncovered_matched": found, "uncovered_total": len(planted),
+            "uncovered_classified_right": right}
+
 
 def _load_states() -> list[dict]:
     states = []
@@ -170,4 +254,5 @@ def eval_scores():
         "contradictions_found": len(matched),
         "contradictions_matched": matched,
         "contradictions_total": len(key["contradictions"]),
+        **_uncovered_scores(key),
     }

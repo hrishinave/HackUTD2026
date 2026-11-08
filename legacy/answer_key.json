@@ -11,4 +11,7 @@
   {"id": "X-2", "kind": "person_vs_person", "a": "billing_clerk_1: auth number goes in notes", "b": "billing_clerk_2: we just write 'see fax'", "truth": "both happen"}],
  "doc_diffs": [
   {"id": "DD-1", "manual_says": "Timely filing limit is 180 days", "code_does": "TF-365 uses 365 days"},
-  {"id": "DD-2", "manual_says": "Prior-auth number goes in field PA-NUM", "code_does": "PA-NUM is never read; PA-SCAN reads notes"}]}
+  {"id": "DD-2", "manual_says": "Prior-auth number goes in field PA-NUM", "code_does": "PA-NUM is never read; PA-SCAN reads notes"}],
+ "uncovered_requirements": [
+  {"id": "U-1", "person": "billing_clerk_1", "measurable": true, "expect_template": "rate_per_person_week", "keywords": ["export", "claims", "friday"]},
+  {"id": "U-2", "person": "billing_clerk_2", "measurable": false, "keywords": ["phone", "payer", "pending"]}]}

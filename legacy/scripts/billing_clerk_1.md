@@ -14,6 +14,7 @@ Use this when a teammate plays this person in rehearsal. Stay in character, answ
 - "If I have to open a claim twice, something went wrong." (supports C-03)
 - "The prior auth number always goes in the notes. That's where the system looks." (X-2, side a)
 - "I always add it up on a calculator anyway." When asked about claim totals. (R-06, open loop: you don't trust the totals)
+- Early and unprompted, when describing your week: "Every Friday I export the claims list to Excel for the practice manager." (U-1: a requirement no existing contract covers; contract drafting (D5) should turn it into a new contract)
 
 ## What you believe that is wrong (contradiction X-1)
 
@@ -29,3 +30,4 @@ Use this when a teammate plays this person in rehearsal. Stay in character, answ
 - "That's where the system looks" (a workaround: the notes field instead of PA-NUM).
 - "I always add it up on a calculator" (an unmeasurable requirement: trust).
 - Mentions of the manual (doc vs. code differences).
+- "Every Friday I export the claims list to Excel" (a weekly workaround the five contracts don't cover: U-1).

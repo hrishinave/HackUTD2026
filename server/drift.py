@@ -15,6 +15,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 POST_EVENTS_PATH = REPO_ROOT / "data" / "post_events.jsonl"
+LEGACY_EVENTS_PATH = REPO_ROOT / "data" / "legacy_events.jsonl"
 
 LEVEL_RANK = {"ok": 0, "breach": 1, "broken": 2}
 CRITICALITY_WEIGHT = {"high": 3, "medium": 2, "low": 1}
@@ -32,6 +33,15 @@ def load_events(live_path: str | None = None) -> list[dict]:
             with open(path) as f:
                 events.extend(json.loads(line) for line in f if line.strip())
     return events
+
+
+def load_legacy_events() -> list[dict]:
+    """Simulated legacy-system events (weeks -12 to -1), used for drafted-contract baselines (D5)."""
+    p = Path(LEGACY_EVENTS_PATH)
+    if not p.exists():
+        return []
+    with open(p) as f:
+        return [json.loads(line) for line in f if line.strip()]
 
 
 # ---------- helpers ----------
@@ -158,6 +168,32 @@ def weekly_metrics(contract: dict, events: list[dict], settings: dict | None = N
         rows.append({"week": week, "values": values, "tasks": tasks, "misses": misses, "people": people,
                      "levels": levels, "state": state})
     return rows
+
+
+def legacy_baseline(contract: dict, legacy_events: list[dict], settings: dict | None = None) -> dict[str, float | None]:
+    """Mean weekly value of each expectation over the legacy weeks (week < 0): what people did in the old system.
+
+    Reuses _measure week by week, exactly as weekly_metrics does for post-launch weeks, so a drafted contract's
+    baseline is computed the same way its drift will be. Returns {metric_id: value or None}. (Task D5)
+    """
+    settings = settings or {}
+    notes_matching = settings.get("notes_matching", True)
+    role_events = [e for e in legacy_events if e["role"] == contract["role"] and e["week"] < 0]
+    by_week = defaultdict(list)
+    for e in role_events:
+        by_week[e["week"]].append(e)
+    flt = contract["population"]["filter"]
+    out = {}
+    for exp in contract["expectations"]:
+        values = []
+        for week in sorted(by_week):
+            wev = by_week[week]
+            people = len({e["actor_hash"] for e in wev})
+            m = _measure(exp, wev, role_events, flt, people, notes_matching)
+            if m["value"] is not None:
+                values.append(m["value"])
+        out[exp["metric_id"]] = round(sum(values) / len(values), 4) if values else None
+    return out
 
 
 def evaluate(contract: dict, weekly: list[dict]) -> dict:
