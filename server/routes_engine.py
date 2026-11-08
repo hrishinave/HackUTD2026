@@ -5,7 +5,9 @@ import glob
 import hashlib
 import json
 import logging
+import copy
 import os
+import re
 import time
 from collections import deque
 
@@ -14,6 +16,7 @@ from fastapi.responses import FileResponse
 
 from server import kb, llm, tts
 from server import settings as st
+from server.contracts import load_catalog, validate_contract
 from server.engine import InterviewSession
 from server.kb import build_brief, load_bank
 
@@ -335,11 +338,32 @@ def interview_state(interview_id: str):
                       "bookkeeping_skipped": runner.skipped_book}}
 
 
+_INTERVIEW_ID = re.compile(r"^INT-\d{2}$")
+
+
 @router.get("/api/contracts")
 def get_contracts():
-    # E4 merges live interview evidence into these.
-    with open(CONTRACTS_PATH) as f:
-        return json.load(f)["contracts"]
+    """Catalog contracts with live interview evidence merged in.
+
+    Live slot fills become evidence[] items (quote, speaker, interview, mm:ss, Q-N lineage). For an
+    interview that has live evidence, it replaces that interview's catalog quotes; other quotes stay.
+    Sessions whose ID isn't INT-NN (rehearsal/test runs) are left out so every contract stays schema-valid.
+    """
+    contracts = copy.deepcopy(load_catalog(CONTRACTS_PATH)["contracts"])
+    live_sessions = [r.session for iid, r in sorted(sessions.items()) if _INTERVIEW_ID.match(iid)]
+    for contract in contracts:
+        live = [e for s in live_sessions for e in s.evidence(contract["id"])]
+        if not live:
+            continue
+        live_ids = {e["interview_id"] for e in live}
+        kept = [e for e in contract.get("evidence", []) if e["interview_id"] not in live_ids]
+        contract["evidence"] = kept + live
+        contract["confidence"]["said"] = True
+    for contract in contracts:
+        errors = validate_contract(contract)
+        if errors:
+            log.warning("contract %s fails the schema after merge: %s", contract["id"], errors[:3])
+    return contracts
 
 
 @router.websocket("/ws/client/{interview_id}")
