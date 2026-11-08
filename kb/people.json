@@ -1,0 +1,41 @@
+{
+  "billing_clerk_1": {
+    "role": "billing_clerk",
+    "label": "Billing clerk 1",
+    "interview_id": "INT-02",
+    "plan": [
+      "Walk me through a normal claim from start to finish.",
+      "How long does a routine claim usually take you?",
+      "When do you have to open a claim more than once?",
+      "How do you check a claim before you submit it?",
+      "Where do you look things up when you're unsure?"
+    ],
+    "relevant_contracts": ["C-02", "C-03", "C-01"]
+  },
+  "billing_clerk_2": {
+    "role": "billing_clerk",
+    "label": "Billing clerk 2",
+    "interview_id": "INT-01",
+    "plan": [
+      "Walk me through a claim that needs prior auth.",
+      "Where does the auth number go?",
+      "What happens when coverage changes after a visit?",
+      "Which kinds of claims take you the longest?",
+      "What gets a claim sent back to you?"
+    ],
+    "relevant_contracts": ["C-01", "C-04", "C-03"]
+  },
+  "denial_specialist_1": {
+    "role": "denial_specialist",
+    "label": "Denial specialist 1",
+    "interview_id": "INT-03",
+    "plan": [
+      "Walk me through what happens when a claim is denied.",
+      "How do you keep track of open denials?",
+      "Who decides how billing rules work here?",
+      "How old can a claim be before you stop appealing?",
+      "What do you wish the system did for denials?"
+    ],
+    "relevant_contracts": ["C-05"]
+  }
+}

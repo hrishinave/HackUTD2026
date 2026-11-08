@@ -1,0 +1,242 @@
+{
+ "PQ-01": {
+  "cue": "Detail:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-01.population",
+  "text": "Which kinds of claims need prior authorization?"
+ },
+ "PQ-02": {
+  "cue": "Detail:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-01.population",
+  "text": "Which payers ask for prior auth most often?"
+ },
+ "PQ-03": {
+  "cue": "Detail:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-01.current_practice",
+  "text": "Can you walk me through a claim that needs prior auth?"
+ },
+ "PQ-04": {
+  "cue": "Detail:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-01.current_practice",
+  "text": "How do you record the authorization once you have it?"
+ },
+ "PQ-05": {
+  "cue": "Detail:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-01.frequency",
+  "text": "Roughly how many of your claims need prior auth?"
+ },
+ "PQ-06": {
+  "cue": "Follow-up:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-01.frequency",
+  "text": "Is that most days, or only some weeks?"
+ },
+ "PQ-07": {
+  "cue": "Gap:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-01.current_practice",
+  "text": "Where does the prior auth number go today?"
+ },
+ "PQ-08": {
+  "cue": "Detail:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-01.exceptions",
+  "text": "When does a prior auth claim get handled differently?"
+ },
+ "PQ-09": {
+  "cue": "Follow-up:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-01.exceptions",
+  "text": "What do you do when the auth arrives after the visit?"
+ },
+ "PQ-10": {
+  "cue": "Detail:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-01.consequence",
+  "text": "What happens if the auth number is missing or wrong?"
+ },
+ "PQ-11": {
+  "cue": "Follow-up:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-01.consequence",
+  "text": "Has a claim ever come back because of the auth?"
+ },
+ "PQ-12": {
+  "cue": "Detail:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-02.current_practice",
+  "text": "Can you walk me through a normal claim from start to finish?"
+ },
+ "PQ-13": {
+  "cue": "Detail:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-02.duration",
+  "text": "How long does a routine claim usually take you?"
+ },
+ "PQ-14": {
+  "cue": "Follow-up:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-02.exceptions",
+  "text": "What slows a claim down the most?"
+ },
+ "PQ-15": {
+  "cue": "Detail:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-02.exceptions",
+  "text": "Which claims take much longer than usual?"
+ },
+ "PQ-16": {
+  "cue": "Follow-up:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-02.current_practice",
+  "text": "Which screen do you spend the most time on?"
+ },
+ "PQ-17": {
+  "cue": "Detail:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-03.current_practice",
+  "text": "Do you usually finish a claim in one sitting?"
+ },
+ "PQ-18": {
+  "cue": "Detail:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-03.reopen_reasons",
+  "text": "What makes you go back and reopen a claim?"
+ },
+ "PQ-19": {
+  "cue": "Follow-up:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-03.reopen_reasons",
+  "text": "When you reopen a claim, what are you usually fixing?"
+ },
+ "PQ-20": {
+  "cue": "Gap:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-04.trigger",
+  "text": "What happens when a patient's coverage changes after the visit?"
+ },
+ "PQ-21": {
+  "cue": "Detail:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-04.trigger",
+  "text": "How do you find out a patient's coverage has changed?"
+ },
+ "PQ-22": {
+  "cue": "Detail:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-04.current_practice",
+  "text": "What do you do when coverage changes on a claim already billed?"
+ },
+ "PQ-23": {
+  "cue": "Detail:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-04.timing",
+  "text": "How soon after a coverage change do you re-check eligibility?"
+ },
+ "PQ-24": {
+  "cue": "Follow-up:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "C-04.timing",
+  "text": "What happens if nobody re-checks eligibility in time?"
+ },
+ "PQ-25": {
+  "cue": "Detail:",
+  "roles": [
+   "denial_specialist"
+  ],
+  "target": "C-05.current_practice",
+  "text": "Can you walk me through what happens when a claim is denied?"
+ },
+ "PQ-26": {
+  "cue": "Detail:",
+  "roles": [
+   "denial_specialist"
+  ],
+  "target": "C-05.current_practice",
+  "text": "How do you keep track of open denials?"
+ },
+ "PQ-27": {
+  "cue": "Detail:",
+  "roles": [
+   "denial_specialist"
+  ],
+  "target": "C-05.tool_used",
+  "text": "Where do you keep your list of denials?"
+ },
+ "PQ-28": {
+  "cue": "Follow-up:",
+  "roles": [
+   "denial_specialist"
+  ],
+  "target": "C-05.tool_used",
+  "text": "What's in that list that the system doesn't show you?"
+ },
+ "PQ-29": {
+  "cue": "Detail:",
+  "roles": [
+   "denial_specialist"
+  ],
+  "target": "C-05.frequency",
+  "text": "How often do you pull denials out of the system?"
+ },
+ "PQ-30": {
+  "cue": "Follow-up:",
+  "roles": [
+   "denial_specialist"
+  ],
+  "target": "C-05.current_practice",
+  "text": "What would the system need so you could drop that list?"
+ }
+}
