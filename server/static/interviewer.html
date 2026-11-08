@@ -25,6 +25,9 @@
     select:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
     #ask { width:100%; font-size:24px; }
     #queue { padding-left:26px; }
+    #queue li { margin-bottom:24px; padding-left:8px; }
+    #queue p { margin:4px 0; }
+    #queue small { color:var(--muted); }
     output { display:block; margin-top:12px; overflow-wrap:anywhere; }
     a { color:var(--accent); }
     footer { display:flex; gap:24px; font-size:16px; }
@@ -52,10 +55,12 @@
     </header>
     <section aria-labelledby="queue-heading">
       <h2 id="queue-heading">Questions</h2>
-      <p id="queue-empty" class="muted">Device check: question delivery will connect in the next step.</p>
+      <p id="queue-empty" class="muted">Questions will appear after the interview starts.</p>
       <ol id="queue"></ol>
-      <button id="ask" type="button">Ask next</button>
-      <p class="muted">Spacebar also asks next. During this device check, controls log their action.</p>
+      <button id="ask" type="button" disabled>Ask next</button>
+      <p class="muted">Spacebar also asks the top question.</p>
+      <p id="playback-status" role="status" aria-live="polite">No question has played yet.</p>
+      <output id="latency" aria-live="polite">Last tap to audio: —</output>
     </section>
     <section aria-labelledby="controls-heading">
       <h2 id="controls-heading">Glasses controls</h2>

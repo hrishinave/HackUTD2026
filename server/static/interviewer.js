@@ -2,7 +2,7 @@ let T0 = Date.now();
 const now = () => Date.now() - T0;
 let lastFinalT = 0;
 let running = false;
-let playing = false; // C3 sets this while a question is playing.
+let playing = false;
 const INTERVIEW_ID = new URLSearchParams(location.search).get('id') || 'INT-01';
 let ws;
 const outbox = [];
@@ -79,7 +79,133 @@ function startRecognition() {
   }
 }
 
-let onServer = (msg) => console.log('server', msg);
+let queue = { based_on_t_ms: 0, questions: [] };
+let lastPlayed = null;
+const clips = Object.create(null);
+const player = new Audio();
+let lastTapToAudioMs = null;
+let playbackSerial = 0;
+let playbackTailTimer;
+let tapPending = false;
+
+function render() {
+  const rows = queue.questions.map((question) => {
+    const row = document.createElement('li');
+    const cue = document.createElement('strong');
+    const text = document.createElement('p');
+    const target = document.createElement('small');
+    cue.textContent = question.cue;
+    text.textContent = question.text;
+    target.textContent = question.target;
+    row.append(cue, text, target);
+    return row;
+  });
+  document.getElementById('queue').replaceChildren(...rows);
+  document.getElementById('queue-empty').hidden = rows.length > 0;
+  document.getElementById('ask').disabled = !sessionStarted || rows.length === 0;
+  document.getElementById('latency').textContent = lastTapToAudioMs === null
+    ? 'Last tap to audio: —'
+    : `Last tap to audio: ${lastTapToAudioMs} ms`;
+}
+
+let onServer = (msg) => {
+  console.log('server', msg);
+  if (msg.type === 'queue') {
+    queue = { based_on_t_ms: msg.based_on_t_ms, questions: msg.questions.slice() };
+    render();
+  } else if (msg.type === 'audio') {
+    clips[msg.question_id] = `data:audio/mpeg;base64,${msg.mp3_b64}`;
+  }
+};
+
+function speak(question, tapT) {
+  const serial = ++playbackSerial;
+  clearTimeout(playbackTailTimer);
+  // New taps may replace playback. Ignore callbacks from the replaced question.
+  player.onplaying = null;
+  player.onended = null;
+  player.onerror = null;
+  player.pause();
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  playing = true;
+  let reported = false;
+  let voiceAttempted = false;
+  const status = document.getElementById('playback-status');
+  status.textContent = 'Starting question…';
+
+  const started = () => {
+    if (serial !== playbackSerial || reported) return;
+    reported = true;
+    lastTapToAudioMs = now() - tapT;
+    send({ type: 'metric', name: 'tap_to_audio_ms', value: lastTapToAudioMs });
+    // Lineage should record playback when audio actually starts, not an attempt.
+    send({ type: 'played', question_id: question.id, t_ms: now() });
+    lastPlayed = question;
+    status.textContent = `Playing: ${question.cue} ${question.text}`;
+    render();
+  };
+  const done = () => {
+    if (serial !== playbackSerial) return;
+    clearTimeout(playbackTailTimer);
+    playbackTailTimer = setTimeout(() => {
+      if (serial !== playbackSerial) return;
+      playing = false;
+      status.textContent = reported ? 'Ready for the next question.' : 'Question could not play. Check the browser audio and report the error.';
+    }, 300);
+  };
+  const browserVoice = () => {
+    if (serial !== playbackSerial || voiceAttempted) return;
+    voiceAttempted = true;
+    if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') {
+      done();
+      return;
+    }
+    const utterance = new SpeechSynthesisUtterance(`${question.cue} ${question.text}`);
+    utterance.rate = 1.05;
+    utterance.volume = 0.6;
+    utterance.onstart = started;
+    utterance.onend = done;
+    utterance.onerror = (event) => {
+      console.error('Question voice failed:', event.error);
+      done();
+    };
+    try {
+      window.speechSynthesis.speak(utterance);
+    } catch (error) {
+      console.error('Question voice could not start:', error);
+      done();
+    }
+  };
+
+  const source = clips[question.id] || question.audio_url;
+  if (source) {
+    player.src = source;
+    player.onplaying = started;
+    player.onended = done;
+    player.onerror = browserVoice;
+    try {
+      player.play().catch(browserVoice);
+    } catch (error) {
+      browserVoice();
+    }
+  } else {
+    browserVoice();
+  }
+  render();
+}
+
+function waitForFresh(maxMs) {
+  return new Promise((resolve) => {
+    if (queue.based_on_t_ms >= lastFinalT) return resolve();
+    const started = Date.now();
+    const timer = setInterval(() => {
+      if (queue.based_on_t_ms >= lastFinalT || Date.now() - started >= maxMs) {
+        clearInterval(timer);
+        resolve();
+      }
+    }, 50);
+  });
+}
 
 function connect() {
   if (ws && (ws.readyState === 0 || ws.readyState === 1)) return;
@@ -118,10 +244,37 @@ function send(obj) {
   else outbox.push(message);
 }
 
-let onTap = (action) => {
+let onTap = async (action) => {
+  if (!sessionStarted || !['play', 'next', 'repeat'].includes(action)) return;
+  const tapT = now();
   console.log('tap', action);
   document.getElementById('tap-output').textContent =
     `Last action: ${action} · ${new Date().toLocaleTimeString()}`;
+  send({ type: 'tap', action, t_ms: tapT });
+  if (tapPending) return;
+  if (action === 'repeat') {
+    if (lastPlayed) speak(lastPlayed, tapT);
+    else document.getElementById('playback-status').textContent = 'No question has played yet.';
+    return;
+  }
+  tapPending = true;
+  try {
+    if (queue.based_on_t_ms < lastFinalT) {
+      document.getElementById('playback-status').textContent = 'Waiting up to one second for a fresh question…';
+    }
+    await waitForFresh(1000);
+    const question = action === 'next' ? queue.questions[1] : queue.questions[0];
+    if (!question) {
+      document.getElementById('playback-status').textContent = action === 'next'
+        ? 'No second question queued. Single tap asks the top question.'
+        : 'Waiting for a question from the server.';
+      return;
+    }
+    queue.questions = queue.questions.filter(item => item.id !== question.id);
+    speak(question, tapT);
+  } finally {
+    tapPending = false;
+  }
 };
 
 function startMediaKeys() {
@@ -144,7 +297,7 @@ function startMediaKeys() {
 
   status.textContent = 'Starting the silent loop…';
   playback.then(() => {
-    status.textContent = 'Silent loop playing. Ready for the glasses tap test.';
+    status.textContent = 'Silent loop playing. Glasses media controls ready.';
   }).catch((error) => {
     navigator.mediaSession.playbackState = 'none';
     status.textContent = 'Audio could not start. Click Start interview to retry and report the error.';
@@ -176,6 +329,7 @@ document.getElementById('start').onclick = async () => {
     if (!response.ok) throw new Error(`Interview start returned HTTP ${response.status}`);
     connect();
     sessionStarted = true;
+    render();
     start.textContent = 'Interview started';
   } catch (error) {
     sessionStarted = false;

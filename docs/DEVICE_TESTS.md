@@ -13,6 +13,7 @@ Date: 2026-11-08. Operator: Hrishi (C). Laptop: the demo MacBook, with the Meta 
 1. In macOS System Settings → Sound, verify Input is **MacBook Microphone** and Output is **the glasses**. Do not use the glasses microphone. Stop and tell Hrishi if either setting needs changing.
 2. Close Music, Spotify, and other tabs playing media. Wear the glasses.
 3. Before `gate/E1-server`, run `python3 -m http.server 8000 --bind 127.0.0.1` from `server/`. Open **Google Chrome** at `http://localhost:8000/static/interviewer.html` in its own visible window.
+   After E1, use `http://localhost:8000/interviewer`. **Do not open the HTML file directly from Finder or a repo file link:** a `file://` page cannot load the root-relative `/static/interviewer.js` or use the server API correctly.
 4. Click **Start interview**. The status must say that the silent loop is playing. Open Chrome's Console with Command–Option–J. Use only synthetic role-play and obtain the reader's consent before recording/transcription.
 
 ## Results
@@ -171,3 +172,46 @@ All four device tests passed according to Hrishi's reports; the original T2 fail
 | C2 check | Result | Notes |
 |---|---|---|
 | Real spoken sentence → final utterance → fresh fake queue in Chrome | PASS — operator-reported | Hrishi selected “All C2 checks pass” for the procedure above. Includes the approximately 2-second final, connected/listening statuses, and fresh fake queue in Chrome. No independent timing trace or raw transcript was supplied. |
+
+## C3: queue, taps, playback, and freshness
+
+**C3 COMPLETE: fake-server and real-engine physical checks PASS (operator-reported).** After correcting the local-file URL issue below, the server confirmed spoken finals, fresh AI queues, and AI-origin played questions. Hrishi then confirmed “it works” in response to the final repeat/freshness check and requested no further C3 checks. Device acceptance is recorded from that confirmation; independent acoustic timing was not captured. Ready for Keshav's `gate/C3-client` review. Automated transport checks remain separate evidence.
+
+During follow-up, Hrishi reported Start was unresponsive. Native Chrome inspection showed `file:///Users/hrishinave/Projects/HackUTD2026/server/static/interviewer.html`, rather than the running server URL. The agent navigated that tab to `http://localhost:8000/interviewer?id=C3-REAL-DEVICE`, clicked Start, and directly verified **Interview started**, **Connection: connected**, **Transcription: listening**, and an initial fallback-plan question. This fixed the Start issue without changing application code or audio settings. The subsequent real session stored at least six utterances, produced AI-origin queues, and recorded AI-origin playback of Q-5 (PQ-07) and Q-7 (PQ-31). Server logs showed browser-start metrics of 37 ms and 13 ms, respectively, and positive question/bookkeeping cache reads. These browser-start measurements do not measure sound arriving at the ear. Hrishi's final repeat/freshness confirmation completes the physical acceptance; the earlier zero-utterance observation remains historical troubleshooting evidence.
+
+### Gates and baseline
+
+- Verified `gate/E3-engine` exists on origin alongside `gate/E1-server`. Merged `origin/main` through `a030097` before implementation; baseline full Python suite: **67 passed**.
+- Verified only that the locally supplied Anthropic key is present and `.env` is ignored; no key value was displayed or committed.
+- A temporary C3 client harness was written and run before implementation. It failed as expected because C2 did not yet define `waitForFresh`.
+
+### Implementation and automated checks
+
+- A `queue` message replaces the local queue; pushed base64 audio is indexed by question ID. Rendered cue, text, and target use text nodes.
+- Single/play and pause media events select the top question; next selects the second question **currently queued**; repeat uses the last question whose audio started. Single and double tap trials must be read against the current visible list, since playing removes an item.
+- Playback prefers pushed audio, then the bank clip URL, then browser voice. A missing or rejected clip also falls back to voice, with duplicate error callbacks guarded.
+- `tap` messages include the relative timestamp. `played` and `tap_to_audio_ms` are sent when audio actually starts, so a failed playback attempt does not create false played lineage. The metric measures browser audio start, not independently observed Bluetooth sound at the ear.
+- Capture suppression lasts through playback plus 300 ms. Replaced playback callbacks cannot release a newer playback's suppression guard.
+- A stale tap waits for a fresh queue or a 1,000 ms deadline, with 50 ms polling. Concurrent freshness waits are suppressed; repeat does not wait for queue freshness.
+- `node --check server/static/interviewer.js`: PASS. Temporary C3 harness: PASS for top/second/repeat selection, safe rendering, clip precedence, missing-clip fallback, played/metric messages, displayed latency, fresh-queue arrival, timeout behavior, and stale-playback callback isolation.
+- Existing C2 temporary checks were updated only to supply C3's browser/DOM stubs; all C2 recognition, buffering, reconnect, permission, and HTTP setup checks still PASS.
+- Full Python suite after C3 implementation: **67 passed**, one third-party deprecation warning.
+- Final review sync: merged `origin/main` through `e15c1a9`, including the data gates and C2 integration. Full suite on the merged client branch: **104 passed**, one third-party deprecation warning, in 58.08 seconds. C2 and C3 temporary client harnesses and syntax checks also pass after the merge.
+- The standard fake provider emits one question. For the plan's three-question test, a temporary fixture in `/private/tmp/fit-check-c3-fake-server.py` wraps only the fake question response in a separate server process. It serves the real FastAPI routes on `127.0.0.1:8000`. No Engine-owned repo source is edited or copied into the client branch.
+- Actual C3 JavaScript against that three-question fake fixture: fresh queue in **1,015 ms**; second-current-question and repeat both acknowledged and stored by the real server. A stale queue waited **1,022 ms** wall time before playback (1,000 ms deadline plus event-loop scheduling).
+- Actual C3 JavaScript against the real Haiku engine on an isolated `127.0.0.1:8001` server: fresh queue in **1,408 ms** after a synthetic final; top question and repeat both acknowledged and stored. Browser audio and recognition were mocked in both transport checks; no microphone was opened by those checks.
+
+### Physical acceptance
+
+Use MacBook Microphone input and glasses output, with other media apps/tabs closed. Stop and report any failed device check or routing change.
+
+1. Fake fixture: open `http://localhost:8000/interviewer?id=C3-DEVICE` in Chrome, click Start, speak a synthetic sentence, and wait for three visible questions.
+2. Single tap: top visible question is heard within 0.5 s. Wait for it to finish.
+3. Double tap: second question in the **current** visible list plays. Triple tap repeats that same question. Check the server's `played` log and acknowledgement.
+4. Speak again and tap as soon as the latest final appears, before the refreshed queue arrives. Playback should resume after at most about one second. This stale-queue delay is separate from the fresh-tap 0.5-second target.
+5. After the fake-fixture check passes, switch the normal port-8000 server to `LLM_PROVIDER=anthropic` and repeat against real engine questions before requesting `gate/C3-client`. Do not switch the server while Hrishi is still testing the fake fixture.
+
+| C3 check | Result | Notes |
+|---|---|---|
+| Fake-server three-question glasses mapping, latency, and freshness | PASS — operator-reported | Hrishi selected “All fake-server C3 glasses checks pass” for the procedure above. The real server state for C3-DEVICE contained 4 utterances and played IDs Q-2, Q-4, Q-4, Q-6, Q-7, including the repeated Q-4. No independent acoustic timing trace was supplied. |
+| Real-engine glasses mapping, playback, and freshness retest | PASS — operator-reported, pipeline corroborated | After localhost Start recovery, saved state contained spoken finals, fresh AI queues, and AI-origin played Q-5/PQ-07 and Q-7/PQ-31. Server metrics were 37 ms / 13 ms to browser audio start. Hrishi confirmed “it works” after the final triple-tap repeat and stale-queue freshness instructions, and asked to stop further C3 checks. No independent acoustic trace; physical latency/repeat/freshness acceptance relies on the operator report. |
