@@ -1,0 +1,12 @@
+# runtime data, secrets, caches
+data/
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+
+# per-laptop agent role files (copied from agents/roles/<ROLE>/, never committed)
+/CLAUDE.md
+/AGENTS.md
+/CLAUDE.local.md

@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "contract.schema.json",
+  "title": "Behaviour contract",
+  "description": "What the usage data should look like if one requirement is being met. Produced by the interview engine, checked by the drift detector, shown on the evidence board.",
+  "type": "object",
+  "required": [
+    "id",
+    "requirement",
+    "role",
+    "signal",
+    "population",
+    "expectations",
+    "window",
+    "baseline",
+    "events_required",
+    "evidence",
+    "confidence",
+    "criticality",
+    "status"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "pattern": "^C-\\d{2}$" },
+
+    "requirement": {
+      "type": "object",
+      "required": ["id", "statement", "feature"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^R-\\d{2}$" },
+        "statement": { "type": "string", "description": "What the system must do, in user terms (8090 Feature Requirements style)." },
+        "feature": { "type": "string", "description": "Feature Requirements doc this belongs to, e.g. 'Claim submission'." }
+      }
+    },
+
+    "role": {
+      "enum": ["billing_clerk", "medical_coder", "denial_specialist", "practice_manager"],
+      "description": "Drift is always measured per role, never per person."
+    },
+
+    "signal": {
+      "enum": ["field_usage", "time", "path", "sequence", "absence"],
+      "description": "The contract shape. Each maps to one query template in the drift detector."
+    },
+
+    "population": {
+      "type": "object",
+      "required": ["description", "filter"],
+      "additionalProperties": false,
+      "properties": {
+        "description": { "type": "string", "description": "Which tasks count, in plain words." },
+        "filter": { "type": "object", "description": "Machine filter over event props, e.g. {\"requires_prior_auth\": true}." }
+      }
+    },
+
+    "expectations": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/expectation" }
+    },
+
+    "window": {
+      "type": "object",
+      "required": ["period", "min_tasks", "min_people", "learning_period_weeks", "consecutive_breaches_for_drift"],
+      "additionalProperties": false,
+      "properties": {
+        "period": { "const": "week" },
+        "min_tasks": { "type": "integer", "minimum": 1, "description": "A window with fewer tasks is skipped." },
+        "min_people": { "type": "integer", "minimum": 5, "description": "Privacy floor: never report a group smaller than this." },
+        "learning_period_weeks": { "type": "integer", "minimum": 0, "description": "Weeks after launch where only improvement is checked." },
+        "consecutive_breaches_for_drift": { "type": "integer", "minimum": 1 }
+      }
+    },
+
+    "baseline": {
+      "type": "object",
+      "required": ["source", "values", "note"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "enum": ["legacy_logs", "interview", "both"], "description": "legacy_logs is strong evidence; interview-only lowers confidence." },
+        "values": { "type": "object", "additionalProperties": { "type": "number" }, "description": "metric_id -> value observed in the legacy system." },
+        "note": { "type": "string" }
+      }
+    },
+
+    "events_required": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Event names from the catalog in medicare_contracts.json that the modernized app must emit."
+    },
+
+    "related_detectors": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Layer 2 discovery detectors whose signals help explain drift, e.g. 'notes_pattern:auth_number'."
+    },
+
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/evidence" }
+    },
+
+    "code_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["file", "rule_id"],
+        "additionalProperties": false,
+        "properties": {
+          "file": { "type": "string" },
+          "rule_id": { "type": "string" },
+          "lines": { "type": "string", "description": "e.g. '212-240'" }
+        }
+      }
+    },
+
+    "confidence": {
+      "type": "object",
+      "required": ["level", "said", "did", "code", "note"],
+      "additionalProperties": false,
+      "properties": {
+        "level": { "enum": ["high", "medium", "low"] },
+        "said": { "type": "boolean", "description": "Interviewees described this behaviour." },
+        "did": { "type": "boolean", "description": "Legacy logs show this behaviour." },
+        "code": { "type": "boolean", "description": "Legacy code enforces or supports it." },
+        "note": { "type": "string" }
+      }
+    },
+
+    "criticality": { "enum": ["high", "medium", "low"] },
+
+    "cost_model": {
+      "type": "object",
+      "required": ["unit_cost_usd", "per", "basis", "demo_value"],
+      "additionalProperties": false,
+      "properties": {
+        "unit_cost_usd": { "type": "number", "minimum": 0 },
+        "per": { "type": "string", "description": "What one unit is, e.g. 'claim at risk of denial'." },
+        "basis": { "type": "string" },
+        "demo_value": { "type": "boolean", "description": "true = planted number for the demo, say so on stage." }
+      }
+    },
+
+    "hypotheses": {
+      "type": "array",
+      "description": "Only for unresolved contradictions: both sides kept, usage decides which was right.",
+      "items": {
+        "type": "object",
+        "required": ["id", "claim", "source", "expectations"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "claim": { "type": "string" },
+          "source": { "type": "string" },
+          "expectations": { "type": "array", "items": { "$ref": "#/$defs/expectation" } }
+        }
+      }
+    },
+
+    "status": {
+      "enum": ["learning", "holding", "drifting", "broken"],
+      "description": "Set by the drift detector. Requirements with no measurable footprint go in open_loops, not here."
+    }
+  },
+
+  "$defs": {
+    "expectation": {
+      "type": "object",
+      "required": ["metric_id", "description", "template", "params", "comparator", "target", "unit", "tolerance"],
+      "additionalProperties": false,
+      "properties": {
+        "metric_id": { "type": "string" },
+        "description": { "type": "string" },
+        "template": {
+          "enum": ["field_fill_rate", "median_duration", "path_conformance", "followup_within", "rate_per_person_week", "detector_rate"],
+          "description": "Which drift-detector query computes it."
+        },
+        "params": { "type": "object", "description": "Template inputs (field name, start/end events, window, etc.)." },
+        "comparator": { "enum": [">=", "<="] },
+        "target": { "type": "number" },
+        "unit": { "enum": ["share", "seconds", "per_person_week", "count"] },
+        "tolerance": { "type": "number", "minimum": 0, "description": "How far past target before a week counts as a breach. 'Broken' = 2x tolerance." }
+      }
+    },
+
+    "evidence": {
+      "type": "object",
+      "required": ["quote", "speaker", "interview_id", "timestamp", "question_id", "question_origin"],
+      "additionalProperties": false,
+      "properties": {
+        "quote": { "type": "string" },
+        "speaker": { "type": "string", "description": "Role label as it appears in the transcript, e.g. 'Billing clerk 2'." },
+        "interview_id": { "type": "string", "pattern": "^INT-\\d{2}$" },
+        "timestamp": { "type": "string", "pattern": "^\\d{2}:\\d{2}$", "description": "mm:ss into the interview." },
+        "question_id": { "type": ["string", "null"], "description": "Q-N of the question this quote answered, if any. Powers the lineage view." },
+        "question_origin": { "enum": ["ai", "interviewer", "unprompted"] }
+      }
+    }
+  }
+}
