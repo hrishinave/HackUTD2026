@@ -162,6 +162,26 @@ def test_approved_contract_appears_in_drift_view(tmp_path, monkeypatch):
     assert ("C-06", "holding") in [(r["contract_id"], r["status"]) for r in rows]
 
 
+def _count_unions(node) -> int:
+    if isinstance(node, dict):
+        own = 1 if isinstance(node.get("type"), list) or "anyOf" in node else 0
+        return own + sum(_count_unions(v) for v in node.values())
+    if isinstance(node, list):
+        return sum(_count_unions(v) for v in node)
+    return 0
+
+
+def test_schema_stays_under_api_union_limit():
+    # the API rejects structured-output schemas with more than 16 union-typed fields (found in the live check)
+    assert _count_unions(cd.DRAFT_SCHEMA) <= cd.UNION_LIMIT
+
+
+def test_unused_param_markers_mean_not_set():
+    marked = {**{k: "" for k in NULL_PARAMS}, "max_loops": -1, "within_hours": 0, "event": "export_csv", "where_source_view": "claims"}
+    item = run([spec(params=marked)])["items"][0]
+    assert item["contract"]["expectations"][0]["params"] == {"event": "export_csv", "where": {"source_view": "claims"}}
+
+
 def test_routes_need_admin_token_to_approve(tmp_path, monkeypatch):
     tmp_storage(tmp_path, monkeypatch)
     monkeypatch.setenv("ADMIN_TOKEN", "a")

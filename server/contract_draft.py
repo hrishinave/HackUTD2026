@@ -55,6 +55,10 @@ TEMPLATES = {
 }
 
 _NULLABLE = lambda t: {"type": [t, "null"]}
+# The API allows at most 16 union-typed (nullable) fields per structured-output schema. The 13 template params are
+# therefore plain fields with an "unused" marker ("" for strings, -1 for max_loops, 0 for within_hours) that code
+# turns back into None before any check; only filter_key, filter_value, stated_value and target stay nullable.
+UNION_LIMIT = 16
 DRAFT_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -69,8 +73,8 @@ DRAFT_SCHEMA = {
                 "role": {"enum": ROLES},
                 "template": {"enum": list(TEMPLATES)},
                 "params": {"type": "object", "additionalProperties": False, "required": ALL_PARAMS,
-                           "properties": {**{k: _NULLABLE("string") for k in ALL_PARAMS},
-                                          "max_loops": _NULLABLE("integer"), "within_hours": _NULLABLE("number")}},
+                           "properties": {**{k: {"type": "string"} for k in ALL_PARAMS},
+                                          "max_loops": {"type": "integer"}, "within_hours": {"type": "number"}}},
                 "population": {"type": "object", "additionalProperties": False,
                                "required": ["description", "filter_key", "filter_value"],
                                "properties": {"description": {"type": "string"}, "filter_key": _NULLABLE("string"),
@@ -162,6 +166,22 @@ def _rules() -> list[dict]:
 
 def _people() -> dict:
     return _read_json(PEOPLE_PATH, {})
+
+
+def _normalize_params(p: dict | None) -> dict:
+    """Turn the schema's "unused" markers ("" / -1 / 0) and nulls into None."""
+    out = {}
+    for k in ALL_PARAMS:
+        v = (p or {}).get(k)
+        if v == "" or (k == "max_loops" and isinstance(v, int) and v < 0) or (k == "within_hours" and isinstance(v, (int, float)) and v <= 0):
+            v = None
+        out[k] = v
+    return out
+
+
+def _with_markers(p: dict) -> dict:
+    """The inverse, for the prompt example: unused params shown the way the model must write them."""
+    return {k: (v if v is not None else (-1 if k == "max_loops" else 0 if k == "within_hours" else "")) for k, v in p.items()}
 
 
 def _source_view_options(catalog: dict) -> list[str]:
@@ -271,7 +291,7 @@ Pick exactly one template per draft:
 - followup_within: share of <trigger_event> followed by <followup_event> on the same claim within <within_hours>.
 - rate_per_person_week: count of <event> (optionally only where source_view = <where_source_view>) per person
   per week. "Does a workaround happen, and how often?"
-Set unused params to null.
+Set unused params to "" (text params), -1 (max_loops) or 0 (within_hours).
 
 stated_value = the number the interviewee gave for how things work TODAY, converted to the template's unit
 (share 0-1, seconds, or count per person per week). Null if they gave no number.
@@ -293,7 +313,7 @@ RULES IN THE LEGACY CODE:
 ROLES: {", ".join(ROLES)}
 
 Example draft (shape only):
-{json.dumps(FAKE_OUTPUT["drafts"][0] | {"quotes": ["<verbatim line from the transcript>"]})}"""
+{json.dumps(FAKE_OUTPUT["drafts"][0] | {"params": _with_markers(FAKE_OUTPUT["drafts"][0]["params"]), "quotes": ["<verbatim line from the transcript>"]})}"""
 
 
 def build_user_message(state: dict) -> str:
@@ -399,6 +419,7 @@ def _target_tolerance(template: str, spec: dict, baseline: float | None):
 def _build_contract(spec: dict, state: dict, interview_id: str, legacy_events: list[dict],
                     seen: dict[str, str], catalog: dict) -> tuple[dict | None, str | None]:
     """Run checks 1-14 and assemble the contract. Returns (record fields, None) or (None, reason)."""
+    spec = {**spec, "params": _normalize_params(spec.get("params"))}
     reason = _check_spec(spec, catalog)
     if reason:
         return None, reason
