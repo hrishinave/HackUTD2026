@@ -4,7 +4,7 @@ Date: 2026-11-08. Operator: Hrishi (C). Laptop: the demo MacBook, with the Meta 
 
 ## Status
 
-**PENDING: T1 acceptance details; T2–T4.** Hrishi reported “it works” in response to the T1 instructions. This confirms qualitative operation; exact per-gesture counts and latency remain unconfirmed. Software checks do not establish a device PASS. Do not request `gate/C1-devices` until results are recorded below.
+**STOPPED — FAIL: T2 (wrong microphone).** Hrishi reported “its using glasses as mic” during the T2 input check. The agent instructed Hrishi to stop `c1Mic` tracks immediately; release has not yet been confirmed. No further device tests should run until the MacBook input is restored and explicitly verified. T1's exact counts and timing, T3, and T4 remain unconfirmed. Do not request `gate/C1-devices` yet.
 
 ## Preparation
 
@@ -18,9 +18,9 @@ Date: 2026-11-08. Operator: Hrishi (C). Laptop: the demo MacBook, with the Meta 
 | Test | Result | Notes |
 |---|---|---|
 | T1: taps | WORKING — details pending | Hrishi's response to the T1 instructions: “it works”. Need explicit confirmation of `play`, `next`, `repeat`, respectively, 10/10 each within 0.5 s before marking PASS. |
-| T2: voice with microphone in use | PENDING | Need full-quality “test” in the glasses while the MacBook mic is active, with taps still working afterward. |
+| T2: voice with microphone in use | FAIL — wrong microphone | Hrishi reported “its using glasses as mic” after the default-device capture probe. Instructed to stop tracks immediately; stop not yet confirmed. Voice quality and taps with the correct microphone remain untested. |
 | T3: transcription at 0.7 m | PENDING | Need 10 role-play lines, with “prior auth”, “notes”, “denial”, and “coverage” transcribed correctly. |
-| T4: call-mode guard | PENDING | During T2, need visual confirmation that Input is still MacBook Microphone and Output is still the glasses. |
+| T4: call-mode guard | BLOCKED | T2 selected the glasses microphone. System Sound routing itself has not been visually verified; restore and verify MacBook input before retesting. |
 
 ### T1: taps
 
@@ -32,7 +32,7 @@ If T1 fails, stop and tell Hrishi. The plan permits one retry after closing othe
 
 ### T2 and T4: microphone, voice, and route
 
-After verifying the system's default input is MacBook Microphone, run this in Chrome's Console. If Chrome's microphone permission or device selection is wrong, stop and tell Hrishi before changing audio settings.
+**Do not rerun the default-device probe below:** it selected the glasses microphone on this laptop. It is retained as the record of the failed test. Before retrying, Hrishi must restore Input = MacBook Microphone and Output = glasses, and the next capture must select the actual MacBook device ID explicitly. Do not change system audio settings without Hrishi's approval.
 
 ```js
 window.c1Mic = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: 'default' } } });
@@ -101,4 +101,4 @@ After implementation:
 - Automated launch of native Google Chrome timed out; subsequent app inventory still showed Chrome not running. Hrishi must open Chrome for device tests. This is not a glasses-test result.
 - Before the skeleton commit, `git status` contained only the four C1 files; root `CLAUDE.md`, `AGENTS.md`, and `.env` were ignored and absent from status.
 
-T1's exact counts and latency, and all of T2–T4, remain pending. Do not treat the software checks as `gate/C1-devices` approval.
+T2 failed its microphone check and testing is stopped. T1's exact counts and latency, T3, and T4 remain pending. Do not treat the software checks as `gate/C1-devices` approval.
