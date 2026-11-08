@@ -157,6 +157,35 @@ class InterviewSession:
                 self.contradictions.append({**c, "after_question_id": last_played})
         self.rules_mentioned.update(result.rules_mentioned)
 
+    # --- contract evidence --------------------------------------------------------
+
+    def _quote_t_ms(self, quote: str, fallback: int | None) -> int:
+        """t_ms of the transcript line the quote came from (latest match), else the fill's call time."""
+        nq = _norm(quote).strip(" .'\"")
+        for u in reversed(self.transcript):
+            nu = _norm(u["text"])
+            if nq and (nq in nu or nu in nq):
+                return u["t_ms"]
+        return fallback if fallback is not None else 0
+
+    def evidence(self, contract_id: str) -> list[dict]:
+        """Slot fills for one contract as contract.schema.json $defs.evidence items."""
+        out = []
+        for key in sorted(self.slot_fills):
+            cid, _, _slot = key.partition(".")
+            f = self.slot_fills[key]
+            if cid != contract_id or not f.get("quote"):
+                continue
+            out.append({
+                "quote": f["quote"],
+                "speaker": self.label,
+                "interview_id": self.interview_id,
+                "timestamp": mmss(self._quote_t_ms(f["quote"], f.get("t_ms"))),
+                "question_id": f.get("question_id"),
+                "question_origin": f.get("question_origin", "unprompted"),
+            })
+        return out
+
     # --- persistence --------------------------------------------------------------
 
     _FIELDS = ("interviewee", "label", "plan", "relevant_contracts", "slot_ids", "transcript", "last_utterance_t",
