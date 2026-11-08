@@ -122,3 +122,4 @@ The integrator appends one line per gate: time, tag, commit, check result.
 | Time | Tag | Commit | Result |
 |---|---|---|---|
 | 2026-11-08, before 0:00 | gate/G0-bootstrap | d8963fb | Pushed with plan, contracts, agents/, .gitignore, .env.example, requirements (pushed from AK's laptop before roles were assigned) |
+| 2026-11-08 04:44 CST | gate/D1-legacy | e5dbb1c | PR #1 merged; tag pushed. PASS: answer key has 7 rules, 2 contradictions, 2 doc diffs; hidden/truth matches 0 in both public KB files. pytest -q: no tests collected (no test suite in this revision). |
