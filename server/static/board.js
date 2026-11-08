@@ -11,6 +11,7 @@
   const status = document.getElementById("connection-status");
   const navigation = [...document.querySelectorAll("[data-route]")];
   let activeRequest = 0;
+  let controller;
 
   function currentRoute() {
     const fragment = window.location.hash.slice(1) || "interview";
@@ -35,6 +36,7 @@
 
   async function loadView(route, config) {
     const requestId = ++activeRequest;
+    controller?.abort();
     const message = document.querySelector(`[data-message="${route.name}"]`);
     const skeletons = document.querySelector(`#${route.name}-view .loading-grid`);
     if (!config.endpoint || route.name === "settings") {
@@ -46,19 +48,25 @@
 
     if (skeletons) skeletons.hidden = false;
     if (message) message.textContent = "Loading…";
+    status.textContent = useMocks ? "Loading synthetic preview" : "Connecting to local server";
     const url = useMocks ? config.mock : config.endpoint;
+    const requestController = new AbortController();
+    controller = requestController;
+    const timeout = window.setTimeout(() => requestController.abort(), 6000);
     try {
-      const response = await fetch(url, { headers: { Accept: "application/json" } });
+      const response = await fetch(url, { headers: { Accept: "application/json" }, signal: requestController.signal });
       if (!response.ok) throw new Error(`Request failed (${response.status})`);
       await response.json();
       if (requestId !== activeRequest) return;
       status.textContent = useMocks ? "Showing synthetic preview data" : "Connected to local server";
       if (skeletons) skeletons.hidden = true;
-      if (message) message.textContent = "Evidence view is ready.";
+      if (message) message.textContent = "Data received. Evidence views will appear here.";
     } catch (error) {
       if (requestId !== activeRequest) return;
-      status.textContent = "Local server unavailable";
-      if (message) message.textContent = `${error.message}. Loading placeholders remain visible.`;
+      status.textContent = useMocks ? "Synthetic preview unavailable" : "Local server unavailable";
+      if (message) message.textContent = "Waiting for evidence. Loading placeholders remain visible.";
+    } finally {
+      window.clearTimeout(timeout);
     }
   }
 
