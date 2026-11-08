@@ -51,6 +51,7 @@ Then:
 | W2 Claim screen + events API | 1:30–2:30 | `claim.html` / `claim.js`: nothing. Events API in `routes_web.py` and its tests: **`gate/E1-server` (hard)**, because it needs `server/settings.py` and `routes_web.py` | Claim page HTML, CSS, JS, regexes | `gate/W2-events` |
 | W3 Interview + Contracts views | 2:30–4:00 | Mocks first (`?mock=1`). Live Interview view: `gate/E3-engine` (soft). Live contract evidence: `gate/E4-lineage` (soft) | Everything against `server/static/mock/state.json` and `mock/contracts.json` | `gate/W3-views`, after retesting against the live engine |
 | W4 Drift view, Finding detail, Software Factory drawer | 4:00–5:00 | Mocks first. Live drift: `gate/D3-drift` (soft). Stub button: `gate/D4-sf` (soft) | Everything against `mock/drift.json` and `mock/findings.json` | `gate/W4-views` |
+| **W5 Contract drafts on the board** (plan Task W5) | After W4; about 45 min | Mocks first (`mock/drafts.json`). Live: `gate/D5-drafts` (soft) | Everything against `mock/drafts.json` | `gate/W5-drafts-ui` |
 | Slides and demo script | 5:00–6:00 | `gate/CP3` | none | none |
 | Rehearsals, `gate/FREEZE`, `gate/RC`, submission | 5:30–7:00 | none | none | (you tag them) |
 
