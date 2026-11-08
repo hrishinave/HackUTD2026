@@ -215,3 +215,37 @@ Use MacBook Microphone input and glasses output, with other media apps/tabs clos
 |---|---|---|
 | Fake-server three-question glasses mapping, latency, and freshness | PASS — operator-reported | Hrishi selected “All fake-server C3 glasses checks pass” for the procedure above. The real server state for C3-DEVICE contained 4 utterances and played IDs Q-2, Q-4, Q-4, Q-6, Q-7, including the repeated Q-4. No independent acoustic timing trace was supplied. |
 | Real-engine glasses mapping, playback, and freshness retest | PASS — operator-reported, pipeline corroborated | After localhost Start recovery, saved state contained spoken finals, fresh AI queues, and AI-origin played Q-5/PQ-07 and Q-7/PQ-31. Server metrics were 37 ms / 13 ms to browser audio start. Hrishi confirmed “it works” after the final triple-tap repeat and stale-queue freshness instructions, and asked to stop further C3 checks. No independent acoustic trace; physical latency/repeat/freshness acceptance relies on the operator report. |
+
+## C4: recovery, auto mode, and Client settings
+
+**C4 COMPLETE — ready for `gate/C4-settings` review.** `gate/E1-server` was present before work began. C3 was accepted and tagged by the integrator; no additional C3 device checks were requested.
+
+### Baseline and scope
+
+- Merged `origin/main` at `0189aa8`, refreshed the local Role C instruction copies, and read the updated C4/D5 handoff. Baseline Python suite: **127 passed**, one third-party deprecation warning.
+- A temporary queue-recovery/auto-mode check was written before implementation and failed as expected because queues were not persisted. The board's settings section was also observed empty before `settings.js` existed.
+- Changed only Role C's interviewer HTML/JS, new `settings.js`, and this log. No board files, backend source, shared instructions, plan, or dependency files were edited by Role C.
+- Hrishi explicitly supplied and authorized the local environment update. Values were saved only in ignored, untracked `.env` with owner-only permissions. No credential values appear in this log or the committed files.
+
+### Recovery and auto-mode checks
+
+- Last queue is stored under `fitcheck.queue.<interview_id>` and restored on reload. Storage reads/writes and malformed cached data are caught. Restored questions are displayed, but playback waits for a current-session server queue, preventing old question IDs from being reported as newly played after Start resets the session.
+- Auto mode starts off. After a final sentence it waits 2 seconds without new speech, then plays only a top `Contradiction:` question. New speech/interim results, manual taps, disabling auto mode, and terminal microphone errors cancel the pending trigger. A late contradiction queue can use the already elapsed silence deadline; each final triggers at most one automatic play.
+- Connection, recognition, and last browser-start latency are displayed together near Start.
+- Syntax checks and temporary C2/C3/C4 harnesses: **PASS**. C4 coverage includes restore/current-session gating, blocked localStorage, two-second timing, new-speech and toggle-off cancellation, no repeated firing, manual detail questions, and late contradiction arrival. No microphone or physical glasses test was needed for these automated C4 checks.
+
+### Settings and audit checks
+
+- `settings.js` renders into W's existing `#settings-view`, loads `/api/settings` and `/api/contracts`, and offers the three monitoring/handoff toggles, dynamic contract checkboxes, 30/90-day retention, admin token, Save, reload, and turn-off/purge controls.
+- Admin token storage uses shared session key `fitcheck.admin_token`, with every access in try/catch. Saves use `X-Admin-Token` and only changed keys; purge sends exactly `drift_enabled: false, purge: true`. The latest 20 audit entries are shown. Enabling monitoring reveals a staff-notice reminder and Privacy link.
+- Temporary settings harness: **PASS** for dynamic approved IDs, empty watch list, token key/header, changed-key payloads, retention, purge payload, 20-entry audit limit, safe text rendering, rejected-token edit preservation, blocked sessionStorage, initial load retry, and successful saves whose audit refresh fails.
+- In-app browser against an isolated real FastAPI server and temporary data: **PASS**. Monitoring toggle saved and appeared in audit; reloading retained settings and the tab token; an empty watch list stayed empty; approved C-06 could be selected; retention saved as 90; a wrong token was rejected without losing edits or adding an audit entry. Independent backend inspection confirmed the exact partial-change audit records.
+- Purge API was exercised only on a generated temporary live-event fixture: **PASS**, file removed and purge audit recorded. Demo live events were not purged.
+- Final demo-server gate check at `http://localhost:8000/board#settings`: **PASS**. The UI enabled monitoring; an independent GET confirmed `drift_enabled: true` and the audit entry. The UI then restored monitoring to its original off value. A second GET confirmed all original settings were restored and audit records contained only the on/off changes. Token fields remained masked.
+- Native Chrome automation was unavailable because the Mac was locked; the in-app browser remained available and completed the settings UI checks. No OS audio settings were changed.
+
+### Final integration and handoff
+
+- Merged `origin/main` through `f2899cd`, including the E4-lineage gate. Full merged-branch suite with fake LLM and empty vendor-key overrides: **129 passed**, one third-party deprecation warning, in 65.01 seconds. Vendor overrides applied only to the test process, not `.env` or the demo server.
+- Demo server restarted on `127.0.0.1:8000` and loaded the authorized `.env`. Saved settings preview: `/private/tmp/fit-check-c4-settings.png` (not a repo file).
+- Gate to request: **`gate/C4-settings`**. Only Keshav (W) merges to main and tags it. After C4, the remaining team milestones are integration, the CP3 fix list, and rehearsals as the demo operator.
