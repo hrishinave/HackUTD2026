@@ -1,0 +1,516 @@
+{
+  "enabled": true,
+  "contracts": [
+    {
+      "contract_id": "C-01",
+      "requirement": {
+        "id": "R-01",
+        "statement": "Every claim that needs prior authorization records the authorization number in its own field.",
+        "feature": "Claim submission"
+      },
+      "role": "billing_clerk",
+      "signal": "field_usage",
+      "expectations": [
+        {
+          "metric_id": "pa_field_fill_rate",
+          "description": "Share of prior-auth claims with the prior-auth field filled",
+          "template": "field_fill_rate",
+          "params": {
+            "event": "claim_submitted",
+            "flag": "prior_auth_number_filled"
+          },
+          "comparator": ">=",
+          "target": 0.95,
+          "unit": "share",
+          "tolerance": 0.05
+        },
+        {
+          "metric_id": "pa_in_notes_rate",
+          "description": "Share of prior-auth claims with an auth number typed into notes",
+          "template": "detector_rate",
+          "params": {
+            "event": "claim_submitted",
+            "tag": "auth_number"
+          },
+          "comparator": "<=",
+          "target": 0.05,
+          "unit": "share",
+          "tolerance": 0.05
+        }
+      ],
+      "learning_period_weeks": 2,
+      "status": "broken",
+      "first_breach_week": 4,
+      "early_warning": false,
+      "severity": 5.4,
+      "recovered": false,
+      "weekly": [
+        {
+          "week": 1,
+          "values": {
+            "pa_field_fill_rate": 0.9,
+            "pa_in_notes_rate": 0.03
+          },
+          "state": "learning",
+          "people": 8
+        },
+        {
+          "week": 2,
+          "values": {
+            "pa_field_fill_rate": 0.95,
+            "pa_in_notes_rate": 0.03
+          },
+          "state": "learning",
+          "people": 8
+        },
+        {
+          "week": 3,
+          "values": {
+            "pa_field_fill_rate": 0.95,
+            "pa_in_notes_rate": 0.04
+          },
+          "state": "holding",
+          "people": 8
+        },
+        {
+          "week": 4,
+          "values": {
+            "pa_field_fill_rate": 0.8,
+            "pa_in_notes_rate": 0.08
+          },
+          "state": "broken",
+          "people": 8
+        },
+        {
+          "week": 5,
+          "values": {
+            "pa_field_fill_rate": 0.62,
+            "pa_in_notes_rate": 0.15
+          },
+          "state": "broken",
+          "people": 8
+        },
+        {
+          "week": 6,
+          "values": {
+            "pa_field_fill_rate": 0.55,
+            "pa_in_notes_rate": 0.22
+          },
+          "state": "broken",
+          "people": 8
+        },
+        {
+          "week": 7,
+          "values": {
+            "pa_field_fill_rate": 0.52,
+            "pa_in_notes_rate": 0.27
+          },
+          "state": "broken",
+          "people": 8
+        },
+        {
+          "week": 8,
+          "values": {
+            "pa_field_fill_rate": 0.5,
+            "pa_in_notes_rate": 0.31
+          },
+          "state": "broken",
+          "people": 8
+        }
+      ]
+    },
+    {
+      "contract_id": "C-02",
+      "requirement": {
+        "id": "R-02",
+        "statement": "A billing clerk can submit a routine clean claim in about five minutes or less.",
+        "feature": "Claim submission"
+      },
+      "role": "billing_clerk",
+      "signal": "time",
+      "expectations": [
+        {
+          "metric_id": "median_submit_seconds",
+          "description": "Median time from opening a claim to submitting it",
+          "template": "median_duration",
+          "params": {
+            "start_event": "claim_opened",
+            "end_event": "claim_submitted"
+          },
+          "comparator": "<=",
+          "target": 300,
+          "unit": "seconds",
+          "tolerance": 75
+        }
+      ],
+      "learning_period_weeks": 2,
+      "status": "holding",
+      "first_breach_week": null,
+      "early_warning": false,
+      "severity": 0,
+      "recovered": false,
+      "weekly": [
+        {
+          "week": 1,
+          "values": {
+            "median_submit_seconds": 260
+          },
+          "state": "learning",
+          "people": 8
+        },
+        {
+          "week": 2,
+          "values": {
+            "median_submit_seconds": 270
+          },
+          "state": "learning",
+          "people": 8
+        },
+        {
+          "week": 3,
+          "values": {
+            "median_submit_seconds": 280
+          },
+          "state": "holding",
+          "people": 8
+        },
+        {
+          "week": 4,
+          "values": {
+            "median_submit_seconds": 290
+          },
+          "state": "holding",
+          "people": 8
+        },
+        {
+          "week": 5,
+          "values": {
+            "median_submit_seconds": 400
+          },
+          "state": "breach",
+          "people": 8
+        },
+        {
+          "week": 6,
+          "values": {
+            "median_submit_seconds": 280
+          },
+          "state": "holding",
+          "people": 8
+        },
+        {
+          "week": 7,
+          "values": {
+            "median_submit_seconds": 275
+          },
+          "state": "holding",
+          "people": 8
+        },
+        {
+          "week": 8,
+          "values": {
+            "median_submit_seconds": 270
+          },
+          "state": "holding",
+          "people": 8
+        }
+      ]
+    },
+    {
+      "contract_id": "C-03",
+      "requirement": {
+        "id": "R-03",
+        "statement": "Clerks finish a claim in one sitting without repeatedly reopening it.",
+        "feature": "Claim submission"
+      },
+      "role": "billing_clerk",
+      "signal": "path",
+      "expectations": [
+        {
+          "metric_id": "multi_reopen_rate",
+          "description": "Share of claims reopened more than once before submission",
+          "template": "path_conformance",
+          "params": {
+            "task_start": "claim_opened",
+            "task_end": "claim_submitted",
+            "loop_event": "claim_reopened",
+            "max_loops": 1
+          },
+          "comparator": "<=",
+          "target": 0.1,
+          "unit": "share",
+          "tolerance": 0.05
+        }
+      ],
+      "learning_period_weeks": 2,
+      "status": "holding",
+      "first_breach_week": null,
+      "early_warning": false,
+      "severity": 0,
+      "recovered": false,
+      "weekly": [
+        {
+          "week": 1,
+          "values": {
+            "multi_reopen_rate": 0.06
+          },
+          "state": "learning",
+          "people": 8
+        },
+        {
+          "week": 2,
+          "values": {
+            "multi_reopen_rate": 0.05
+          },
+          "state": "learning",
+          "people": 8
+        },
+        {
+          "week": 3,
+          "values": {
+            "multi_reopen_rate": 0.06
+          },
+          "state": "holding",
+          "people": 8
+        },
+        {
+          "week": 4,
+          "values": {
+            "multi_reopen_rate": 0.07
+          },
+          "state": "holding",
+          "people": 8
+        },
+        {
+          "week": 5,
+          "values": {
+            "multi_reopen_rate": 0.06
+          },
+          "state": "holding",
+          "people": 8
+        },
+        {
+          "week": 6,
+          "values": {
+            "multi_reopen_rate": 0.05
+          },
+          "state": "holding",
+          "people": 8
+        },
+        {
+          "week": 7,
+          "values": {
+            "multi_reopen_rate": 0.06
+          },
+          "state": "holding",
+          "people": 8
+        },
+        {
+          "week": 8,
+          "values": {
+            "multi_reopen_rate": 0.06
+          },
+          "state": "holding",
+          "people": 8
+        }
+      ]
+    },
+    {
+      "contract_id": "C-04",
+      "requirement": {
+        "id": "R-04",
+        "statement": "When a patient's coverage changes after the date of service, eligibility is re-checked before the claim goes out.",
+        "feature": "Eligibility changes"
+      },
+      "role": "billing_clerk",
+      "signal": "sequence",
+      "expectations": [
+        {
+          "metric_id": "recheck_within_48h_rate",
+          "description": "Share of post-visit coverage changes followed by an eligibility check within 48 hours",
+          "template": "followup_within",
+          "params": {
+            "trigger_event": "coverage_changed",
+            "followup_event": "eligibility_checked",
+            "within_hours": 48
+          },
+          "comparator": ">=",
+          "target": 0.9,
+          "unit": "share",
+          "tolerance": 0.1
+        }
+      ],
+      "learning_period_weeks": 2,
+      "status": "holding",
+      "first_breach_week": null,
+      "early_warning": false,
+      "severity": 0,
+      "recovered": false,
+      "weekly": [
+        {
+          "week": 1,
+          "values": {
+            "recheck_within_48h_rate": 0.95
+          },
+          "state": "learning",
+          "people": 8
+        },
+        {
+          "week": 2,
+          "values": {
+            "recheck_within_48h_rate": 0.96
+          },
+          "state": "learning",
+          "people": 8
+        },
+        {
+          "week": 3,
+          "values": {
+            "recheck_within_48h_rate": 0.94
+          },
+          "state": "holding",
+          "people": 8
+        },
+        {
+          "week": 4,
+          "values": {
+            "recheck_within_48h_rate": 0.95
+          },
+          "state": "holding",
+          "people": 8
+        },
+        {
+          "week": 5,
+          "values": {
+            "recheck_within_48h_rate": 0.96
+          },
+          "state": "holding",
+          "people": 8
+        },
+        {
+          "week": 6,
+          "values": {
+            "recheck_within_48h_rate": 0.95
+          },
+          "state": "holding",
+          "people": 8
+        },
+        {
+          "week": 7,
+          "values": {
+            "recheck_within_48h_rate": 0.94
+          },
+          "state": "holding",
+          "people": 8
+        },
+        {
+          "week": 8,
+          "values": {
+            "recheck_within_48h_rate": 0.95
+          },
+          "state": "holding",
+          "people": 8
+        }
+      ]
+    },
+    {
+      "contract_id": "C-05",
+      "requirement": {
+        "id": "R-05",
+        "statement": "Denials are tracked inside the system, so no side spreadsheet is needed.",
+        "feature": "Denial management"
+      },
+      "role": "denial_specialist",
+      "signal": "absence",
+      "expectations": [
+        {
+          "metric_id": "denial_export_rate",
+          "description": "Exports of the denials list to CSV per person per week",
+          "template": "rate_per_person_week",
+          "params": {
+            "event": "export_csv",
+            "where": {
+              "source_view": "denials"
+            }
+          },
+          "comparator": "<=",
+          "target": 1,
+          "unit": "per_person_week",
+          "tolerance": 1
+        }
+      ],
+      "learning_period_weeks": 2,
+      "status": "holding",
+      "first_breach_week": null,
+      "early_warning": false,
+      "severity": 0,
+      "recovered": false,
+      "weekly": [
+        {
+          "week": 1,
+          "values": {
+            "denial_export_rate": 0.8
+          },
+          "state": "learning",
+          "people": 5
+        },
+        {
+          "week": 2,
+          "values": {
+            "denial_export_rate": 1
+          },
+          "state": "learning",
+          "people": 5
+        },
+        {
+          "week": 3,
+          "values": {
+            "denial_export_rate": 0.8
+          },
+          "state": "holding",
+          "people": 5
+        },
+        {
+          "week": 4,
+          "values": {
+            "denial_export_rate": 1
+          },
+          "state": "holding",
+          "people": 5
+        },
+        {
+          "week": 5,
+          "values": {
+            "denial_export_rate": 0.8
+          },
+          "state": "holding",
+          "people": 5
+        },
+        {
+          "week": 6,
+          "values": {
+            "denial_export_rate": 1
+          },
+          "state": "holding",
+          "people": 5
+        },
+        {
+          "week": 7,
+          "values": {
+            "denial_export_rate": 0.8
+          },
+          "state": "holding",
+          "people": 5
+        },
+        {
+          "week": 8,
+          "values": {
+            "denial_export_rate": 1
+          },
+          "state": "holding",
+          "people": 5
+        }
+      ]
+    }
+  ]
+}
