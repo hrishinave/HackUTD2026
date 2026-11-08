@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 
 from fastapi import APIRouter, Body, Header, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from server import contract_draft as cd
 from server import contracts as ct
@@ -20,6 +20,7 @@ from server import settings as st
 from server import simulate as sim
 from server.contracts import load_catalog
 from server.feedback import build_payload, validate_payload
+from server.sf_export import requirement_markdown
 
 router = APIRouter()
 
@@ -140,6 +141,20 @@ def file_finding(finding_id: str):
 @router.get("/api/filed")
 def get_filed():
     return fb.load_filed()
+
+
+@router.get("/api/contracts/{contract_id}/sf-requirement")
+def sf_requirement(contract_id: str):
+    """Software Factory Feature Requirements document (Markdown) for one contract. Download only, nothing is sent."""
+    contracts = _contracts()
+    contract = next((c for c in contracts if c["id"] == contract_id), None)
+    if contract is None:
+        raise HTTPException(status_code=404, detail=f"unknown contract: {contract_id}")
+    s = _settings()
+    finding = None
+    if s["drift_enabled"]:
+        finding = next((f for f in dr.findings(contracts, _events(), s) if f["contract_id"] == contract_id), None)
+    return Response(content=requirement_markdown(contract, finding), media_type="text/markdown; charset=utf-8")
 
 
 @router.post("/stub/v2/reporting-api/feedback")
