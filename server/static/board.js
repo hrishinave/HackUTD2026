@@ -11,6 +11,8 @@
   let selectedPerson = "billing_clerk_2";
   let selectedCompany = "medicare_billing_demo";
   let selectedCompanyName = "";
+  let liveSocket;
+  let recognition;
   const byId = (id) => document.getElementById(id);
   const title = byId("page-title");
   const status = byId("connection-status");
@@ -90,7 +92,7 @@
   }
 
   async function startNewInterview() {
-    const button = byId("start-interview");
+    const button = byId("start-interview-begin");
     button.disabled = true;
     const next = "INT-" + String(Date.now()).slice(-2);
     try {
@@ -101,13 +103,36 @@
       const response = await fetch("/api/interviews/" + next + "/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ interviewee: selectedPerson, company_id: selectedCompany, company_name: selectedCompanyName, person_name: personName, position: personPosition }) });
       if (!response.ok) throw new Error("Could not start the interview");
       selectedInterview = next;
+      byId("start-interview-dialog").close();
       await loadInterviewList();
       byId("interview-picker").value = selectedInterview;
+      startRecordingTransport();
       showRoute();
     } catch (error) {
-      const message = document.querySelector('[data-message="interview"]');
+      const message = byId("start-interview-message");
       if (message) message.textContent = error.message;
     } finally { button.disabled = false; }
+  }
+
+  function startRecordingTransport() {
+    const scheme = location.protocol === "https:" ? "wss:" : "ws:";
+    liveSocket?.close();
+    liveSocket = new WebSocket(scheme + "//" + location.host + "/ws/client/" + encodeURIComponent(selectedInterview));
+    liveSocket.addEventListener("open", () => { liveSocket.send(JSON.stringify({ type: "hello", client: "consultancy-board" })); status.textContent = "Recording · live interview transport connected"; });
+    liveSocket.addEventListener("close", () => { if (selectedInterview) status.textContent = "Interview started · transport disconnected"; });
+    const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Speech) return;
+    recognition?.stop();
+    recognition = new Speech();
+    recognition.continuous = true; recognition.interimResults = false; recognition.lang = "en-US";
+    recognition.onresult = (event) => {
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        if (!event.results[index].isFinal || !liveSocket || liveSocket.readyState !== WebSocket.OPEN) continue;
+        liveSocket.send(JSON.stringify({ type: "utterance", text: event.results[index][0].transcript.trim(), final: true, t_ms: Date.now() }));
+      }
+    };
+    recognition.onend = () => { if (selectedInterview && liveSocket?.readyState === WebSocket.OPEN) { try { recognition.start(); } catch {} } };
+    try { recognition.start(); } catch {}
   }
 
   function draftInterview(record) { return /^DR-(INT-\d{2})-\d+$/.exec(record.draft_id || "")?.[1] || "Unknown interview"; }
@@ -752,7 +777,9 @@
 
   window.addEventListener("hashchange", showRoute);
   byId("draft-interview").value = useMocks ? "INT-01" : "INT-02";
-  byId("start-interview")?.addEventListener("click", startNewInterview);
+  byId("start-interview")?.addEventListener("click", () => { byId("start-interview-message").textContent = ""; byId("start-interview-dialog").showModal(); });
+  byId("start-interview-cancel")?.addEventListener("click", () => byId("start-interview-dialog").close());
+  byId("start-interview-form")?.addEventListener("submit", (event) => { event.preventDefault(); startNewInterview(); });
   byId("interview-picker")?.addEventListener("change", (event) => { selectedInterview = event.target.value; showRoute(); });
   byId("draft-interview").addEventListener("change", () => { byId("draft-message").textContent = ""; renderDrafts(); });
   byId("draft-run").addEventListener("click", runDrafts);
