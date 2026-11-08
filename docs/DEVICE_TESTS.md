@@ -13,6 +13,7 @@ Date: 2026-11-08. Operator: Hrishi (C). Laptop: the demo MacBook, with the Meta 
 1. In macOS System Settings → Sound, verify Input is **MacBook Microphone** and Output is **the glasses**. Do not use the glasses microphone. Stop and tell Hrishi if either setting needs changing.
 2. Close Music, Spotify, and other tabs playing media. Wear the glasses.
 3. Before `gate/E1-server`, run `python3 -m http.server 8000 --bind 127.0.0.1` from `server/`. Open **Google Chrome** at `http://localhost:8000/static/interviewer.html` in its own visible window.
+   After E1, use `http://localhost:8000/interviewer`. **Do not open the HTML file directly from Finder or a repo file link:** a `file://` page cannot load the root-relative `/static/interviewer.js` or use the server API correctly.
 4. Click **Start interview**. The status must say that the silent loop is playing. Open Chrome's Console with Command–Option–J. Use only synthetic role-play and obtain the reader's consent before recording/transcription.
 
 ## Results
@@ -175,6 +176,8 @@ All four device tests passed according to Hrishi's reports; the original T2 fail
 ## C3: queue, taps, playback, and freshness
 
 **Fake-server physical glasses check: PASS (operator-reported). Real-engine physical retest: INCOMPLETE — speech capture needs confirmation.** Hrishi reported that all real-engine checks passed, but the subsequent saved C3-REAL-DEVICE state contained zero utterances and only fallback-plan play events. Playback operation is supported by the saved state; real spoken-input → fresh AI queue and freshness behavior are not yet corroborated. A targeted speech-capture check has been requested. Do not request `gate/C3-client` yet. Automated transport tests mock recognition and browser audio and are not physical passes.
+
+During follow-up, Hrishi reported Start was unresponsive. Native Chrome inspection showed `file:///Users/hrishinave/Projects/HackUTD2026/server/static/interviewer.html`, rather than the running server URL. The agent navigated that tab to `http://localhost:8000/interviewer?id=C3-REAL-DEVICE`, clicked Start, and directly verified **Interview started**, **Connection: connected**, **Transcription: listening**, and an initial fallback-plan question. This fixed the Start issue without changing application code or audio settings. Start created a new session; fresh spoken-input verification is still pending. Hrishi has been asked to speak the target sentence without tapping so receipt can be checked directly.
 
 ### Gates and baseline
 
