@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#F6F4EF">
+  <title>Fit Check | Evidence board</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/board.css">
+  <script src="/static/board.js" defer></script>
+  <script src="/static/settings.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="rail" aria-label="Board navigation">
+      <a class="brand" href="/board#interview" aria-label="Fit Check evidence board">
+        <span class="brand-mark" aria-hidden="true">FC</span>
+        <span><strong>Fit Check</strong><small>Evidence board</small></span>
+      </a>
+      <nav class="primary-nav">
+        <a href="#interview" data-route="interview">Interview</a>
+        <a href="#contracts" data-route="contracts">Contracts</a>
+        <a href="#drift" data-route="drift">Drift</a>
+        <a href="#settings" data-route="settings">Client settings</a>
+      </nav>
+      <div class="rail-note">
+        <span class="eyebrow">8090.AI DEMO</span>
+        <p>Software Factory checks code against requirements. We check requirements against people.</p>
+        <span class="synthetic-label">Synthetic demo data</span>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">FIT CHECK / MEDICARE BILLING OFFICE</p>
+          <h1 id="page-title">Interview</h1>
+        </div>
+        <div class="header-meta">
+          <span class="connection-indicator" aria-hidden="true"></span>
+          <span id="connection-status" role="status" aria-live="polite">Connecting to local server</span>
+        </div>
+      </header>
+
+      <section id="interview-view" class="view-panel" aria-labelledby="interview-title">
+        <h2 id="interview-title" class="visually-hidden">Interview</h2>
+        <div class="view-intro">
+          <div>
+            <p class="eyebrow">BEFORE LAUNCH</p>
+            <h2>Interview evidence</h2>
+            <p>Follow how answers connect to requirements and the questions that surfaced them.</p>
+          </div>
+          <a class="text-link" href="/interviewer">Open interviewer</a>
+        </div>
+        <div class="loading-grid" role="status" aria-label="Interview data loading">
+          <div aria-hidden="true" class="skeleton panel-skeleton skeleton-wide"></div>
+          <div aria-hidden="true" class="skeleton panel-skeleton"></div>
+          <div aria-hidden="true" class="skeleton panel-skeleton"></div>
+        </div>
+        <p class="view-message" data-message="interview" role="status" aria-live="polite">Loading interview evidence…</p>
+      </section>
+
+      <section id="contracts-view" class="view-panel" aria-labelledby="contracts-title" hidden>
+        <h2 id="contracts-title" class="visually-hidden">Contracts</h2>
+        <div class="view-intro">
+          <div>
+            <p class="eyebrow">REQUIREMENTS / EVIDENCE</p>
+            <h2>Behaviour contracts</h2>
+            <p>Checkable expectations paired with what people said, did and what the legacy code shows.</p>
+          </div>
+        </div>
+        <div class="loading-grid" role="status" aria-label="Contract data loading">
+          <div aria-hidden="true" class="skeleton panel-skeleton"></div>
+          <div aria-hidden="true" class="skeleton panel-skeleton"></div>
+        </div>
+        <p class="view-message" data-message="contracts" role="status" aria-live="polite">Loading contracts…</p>
+      </section>
+
+      <section id="drift-view" class="view-panel" aria-labelledby="drift-title" hidden>
+        <h2 id="drift-title" class="visually-hidden">Drift</h2>
+        <div class="view-intro">
+          <div>
+            <p class="eyebrow">AFTER LAUNCH / CLIENT OPT-IN</p>
+            <h2>Usage and fit</h2>
+            <p>Usage monitoring is off unless the client chooses to enable it in settings.</p>
+          </div>
+        </div>
+        <div class="loading-grid" role="status" aria-label="Drift data loading">
+          <div aria-hidden="true" class="skeleton panel-skeleton"></div>
+          <div aria-hidden="true" class="skeleton panel-skeleton"></div>
+        </div>
+        <p class="view-message" data-message="drift" role="status" aria-live="polite">Loading drift status…</p>
+      </section>
+
+      <section id="finding-view" class="view-panel" aria-labelledby="finding-title" hidden>
+        <h2 id="finding-title" class="visually-hidden">Finding detail</h2>
+        <div class="view-intro">
+          <div>
+            <p class="eyebrow">EVIDENCE / FINDING</p>
+            <h2>Finding detail</h2>
+            <p>Evidence, impact and lineage back to the interview.</p>
+          </div>
+          <a class="text-link" href="#interview">Return to interview</a>
+        </div>
+        <div class="loading-grid" role="status" aria-label="Finding data loading">
+          <div aria-hidden="true" class="skeleton panel-skeleton skeleton-wide"></div>
+        </div>
+        <p class="view-message" data-message="finding" role="status" aria-live="polite">Loading finding…</p>
+      </section>
+
+      <section id="settings-view" class="view-panel" aria-label="Client settings" hidden></section>
+
+      <footer class="site-footer">
+        <span>Fit Check · Synthetic demonstration only</span>
+        <nav aria-label="Legal">
+          <a href="/terms">Terms</a>
+          <a href="/privacy">Privacy</a>
+        </nav>
+      </footer>
+    </main>
+  </div>
+</body>
+</html>

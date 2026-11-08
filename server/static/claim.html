@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#F6F4EF">
+  <meta name="client-token" content="{{CLIENT_TOKEN}}">
+  <title>Claim entry | Fit Check</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/board.css">
+  <script src="/static/claim.js" defer></script>
+  <style>
+    .claim-page { max-width: 1020px; margin: 0 auto; padding: 36px 24px; }
+    .claim-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr); gap: 28px; margin-top: 28px; align-items: start; }
+    .claim-panel { padding: 24px; }
+    .claim-panel h2 { margin-top: 0; font-size: 20px; font-weight: 500; }
+    .claim-panel p { color: var(--muted); line-height: 1.6; }
+    .claim-tabs { display: flex; gap: 20px; border-bottom: 1px solid var(--line); margin-bottom: 24px; }
+    .claim-tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); padding: 12px 0; }
+    .claim-tabs [aria-selected="true"] { border-color: var(--accent); color: var(--ink); }
+    fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
+    .claim-field { display: grid; gap: 8px; margin-bottom: 20px; }
+    label { font-size: 14px; font-weight: 500; }
+    input, select, textarea { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); color: var(--ink); padding: 10px 12px; }
+    textarea { resize: vertical; min-height: 112px; }
+    button { cursor: pointer; border: 1px solid var(--accent); border-radius: var(--radius); background: var(--accent); color: var(--panel); padding: 11px 20px; }
+    button:disabled { cursor: default; opacity: .6; }
+    .claim-hint { color: var(--muted); font-size: 12px; line-height: 1.6; }
+    .claim-actions { padding-top: 20px; margin-top: 12px; border-top: 1px solid var(--line); }
+    .claim-notice { min-height: 20px; margin-top: 16px; font-size: 13px; color: var(--muted); }
+    #monitoring-loading { width: 220px; height: 16px; margin: 16px 0; border-radius: var(--radius); }
+    @media (max-width: 700px) { .claim-layout { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main class="claim-page">
+    <header class="page-header">
+      <div><p class="eyebrow">FIT CHECK / FICTIONAL BILLING OFFICE</p><h1>Claim entry</h1></div>
+      <span class="synthetic-label">Synthetic demo data</span>
+    </header>
+    <div id="monitoring-loading" class="skeleton" aria-hidden="true"></div>
+    <p id="monitoring-status" class="claim-notice" role="status">Checking usage monitoring settings…</p>
+    <div class="claim-layout">
+      <form id="claim-form" class="panel claim-panel">
+        <h2>Professional claim</h2>
+        <p class="claim-hint">Demo entry only. Use fictional values throughout.</p>
+        <fieldset id="claim-controls" disabled>
+          <legend class="visually-hidden">Claim details</legend>
+          <div class="claim-tabs" role="tablist" aria-label="Claim sections">
+            <button id="main-tab" type="button" role="tab" aria-selected="true" aria-controls="main-panel">Main</button>
+            <button id="authorization-tab" type="button" role="tab" aria-selected="false" aria-controls="authorization-panel" tabindex="-1">Authorization</button>
+          </div>
+          <section id="main-panel" role="tabpanel" aria-labelledby="main-tab">
+            <div class="claim-field"><label for="patient-id">Patient ID</label><input id="patient-id" autocomplete="off" maxlength="40" placeholder="DEMO-001" required aria-describedby="patient-hint"><span id="patient-hint" class="claim-hint">Fictional identifier only. Never included in usage events.</span></div>
+            <div class="claim-field"><label for="procedure-code">Procedure</label><select id="procedure-code"><option value="99213">99213 · Office visit</option><option value="70553" data-requires-prior-auth="true">70553 · MRI, prior authorization required</option><option value="71046">71046 · Chest X-ray</option></select></div>
+            <div class="claim-field"><label for="service-date">Date of service</label><input id="service-date" type="date" required></div>
+            <div class="claim-field"><label for="claim-notes">Notes</label><textarea id="claim-notes" placeholder="Synthetic notes only" aria-describedby="notes-hint"></textarea><span id="notes-hint" class="claim-hint">Notes stay in this page. If enabled, pattern matching sends tags only.</span></div>
+          </section>
+          <section id="authorization-panel" role="tabpanel" aria-labelledby="authorization-tab" hidden>
+            <div class="claim-field"><label for="prior-auth-number">Prior authorization number</label><input id="prior-auth-number" autocomplete="off" maxlength="40" aria-describedby="auth-hint"><span id="auth-hint" class="claim-hint">Use a fictional number. Only whether this field is filled is measured.</span></div>
+          </section>
+          <div class="claim-actions"><button id="submit-claim" type="submit">Submit demo claim</button></div>
+        </fieldset>
+        <p id="claim-result" class="claim-notice" role="status" aria-live="polite"></p>
+      </form>
+      <aside class="panel claim-panel" aria-label="About this demonstration">
+        <p class="eyebrow">MODERNIZED CLAIM WORKFLOW</p>
+        <h2>One claim, two sections</h2>
+        <p>Enter the visit details on Main. Authorization information has its own tab.</p>
+        <p>This form simulates claim entry. Submitting records no patient data and sends no claim to a payer.</p>
+        <p class="claim-hint">When usage monitoring is enabled, only catalog events, flags and optional pattern tags are collected. <a href="/privacy">Read the privacy notice</a>.</p>
+      </aside>
+    </div>
+    <footer class="site-footer"><span>Fit Check · Synthetic demonstration only</span><nav aria-label="Legal"><a href="/terms">Terms</a><a href="/privacy">Privacy</a></nav></footer>
+  </main>
+</body>
+</html>

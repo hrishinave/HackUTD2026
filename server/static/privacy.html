@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#F6F4EF">
+  <title>Privacy | Fit Check</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/board.css">
+
+</head>
+<body>
+  <main class="document">
+    <p class="eyebrow">FIT CHECK / DEMONSTRATION</p>
+    <h1>Privacy</h1>
+    <p>Fit Check is a synthetic-data demonstration. The sample staff, interview quotes, events and findings are fictional. Do not enter patient data or other real sensitive information.</p>
+
+    <h2>What is collected</h2>
+    <p>After an administrator opts in, the demo can collect event flags, event names, role labels, pseudonymous actor hashes used to enforce the minimum group size, and optional pattern tags matched in the browser. Usage events contain no patient data, claim notes or other free text. When monitoring is off, the claim page sends no usage events.</p>
+
+    <h2>Interview processing and service providers</h2>
+    <p>Chrome's speech recognition may send audio for transcription to Google. Interview transcripts are sent to Anthropic to generate questions and organize evidence. Question text may be sent to ElevenLabs to create speech. Do not conduct a real interview without informed consent and appropriate approval for these providers. The software does not promise that spoken content can never include sensitive information.</p>
+
+    <h2>How information is used and displayed</h2>
+    <p>Usage is summarized by role to compare observed behaviour with the demo contracts. Groups smaller than five people are suppressed. Actor hashes are used to count people for this floor and are not displayed. The tool is not for individual performance review, and its findings are not a substitute for human review.</p>
+
+    <h2>Opt-in, controls and retention</h2>
+    <p>Drift monitoring is off by default. An administrator can enable it, choose watched contracts, control notes-pattern matching and set the configured retention period to 30 or 90 days. Settings changes are recorded in the local audit log. Turning monitoring off with the delete option removes stored live events. Usage events older than the configured retention period are deleted on server start. All stored demo data will be deleted after the event. Staff must be told what is measured before monitoring is enabled.</p>
+
+    <h2>Sharing and external connections</h2>
+    <p>The Software Factory feature is a local simulated stub; no live Software Factory connection is made. The evidence board is a local demonstration surface. This demo does not provide production access controls or encrypted storage and should not be used with real personal, health or confidential data.</p>
+
+    <footer class="document-footer" aria-label="Legal">
+      <a href="/board#interview">Return to the evidence board</a>
+      <span aria-hidden="true"> · </span>
+      <a href="/terms">Terms</a>
+      <span aria-hidden="true"> &middot; </span>
+      <a href="/privacy" aria-current="page">Privacy</a>
+    </footer>
+  </main>
+</body>
+</html>
