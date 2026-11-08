@@ -21,11 +21,11 @@ from server.contracts import validate_contract
 from server.engine import InterviewSession
 from server.kb import build_brief, load_bank
 
-log = logging.getLogger("fitcheck.engine")
+log = logging.getLogger("pact.engine")
 
-# uvicorn only configures its own loggers; give ours (fitcheck.engine, fitcheck.llm) a handler
+# uvicorn only configures its own loggers; give ours (pact.engine, pact.llm) a handler
 # so warm-ups, cache numbers and played events show in the server log.
-_root = logging.getLogger("fitcheck")
+_root = logging.getLogger("pact")
 if not _root.handlers:
     _h = logging.StreamHandler()
     _h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s", "%H:%M:%S"))

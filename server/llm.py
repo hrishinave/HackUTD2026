@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 import anthropic
 
-log = logging.getLogger("fitcheck.llm")
+log = logging.getLogger("pact.llm")
 
 # Plan section 10.3, verbatim.
 QUESTION_SCHEMA = {
