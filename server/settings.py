@@ -7,6 +7,8 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 
+from server import contracts as ct
+
 SETTINGS_PATH = "data/client_settings.json"
 AUDIT_PATH = "data/audit.jsonl"
 LIVE_EVENTS_PATH = "data/live_events.jsonl"
@@ -46,7 +48,8 @@ def _validate(changes: dict) -> None:
             if isinstance(value, bool) or value not in (30, 90):
                 raise ValueError("retention_days must be 30 or 90")
         elif key == "contracts_watched":
-            if not isinstance(value, list) or any(c not in DEFAULTS["contracts_watched"] for c in value):
+            known = {c["id"] for c in ct.load_all_contracts()}
+            if not isinstance(value, list) or any(not isinstance(c, str) or c not in known for c in value):
                 raise ValueError("contracts_watched must be a list of known contract IDs")
         elif isinstance(default, str):
             if not isinstance(value, str) or not value.strip():

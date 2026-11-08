@@ -263,6 +263,29 @@ def _existing_keys(contracts: list[dict]) -> dict[str, str]:
     return keys
 
 
+def _covered_contract(spec: dict, params: dict, evidence: list[dict], existing: list[dict]) -> str | None:
+    """A changed notes tag does not make already-quoted workflow evidence a new requirement.
+
+    Check verified quotes within the same role, template and event workflow.
+    Unrelated quotes remain eligible even when they share a catalog event.
+    """
+    workflow = {key: params[key] for key in EVENT_PARAMS if key in params}
+    for contract in existing:
+        if contract["role"] != spec["role"]:
+            continue
+        same_workflow = any(
+            exp["template"] == spec["template"]
+            and {key: exp["params"][key] for key in EVENT_PARAMS if key in exp["params"]} == workflow
+            for exp in contract["expectations"]
+        )
+        if not same_workflow:
+            continue
+        quotes = [{"text": item["quote"]} for item in contract.get("evidence", [])]
+        if any(_match_quote(item["quote"], quotes) is not None for item in evidence):
+            return contract["id"]
+    return None
+
+
 # ---------- prompt ----------
 
 def build_system_prompt(existing: list[dict]) -> str:
@@ -417,7 +440,7 @@ def _target_tolerance(template: str, spec: dict, baseline: float | None):
 
 
 def _build_contract(spec: dict, state: dict, interview_id: str, legacy_events: list[dict],
-                    seen: dict[str, str], catalog: dict) -> tuple[dict | None, str | None]:
+                    seen: dict[str, str], catalog: dict, existing: list[dict]) -> tuple[dict | None, str | None]:
     """Run checks 1-14 and assemble the contract. Returns (record fields, None) or (None, reason)."""
     spec = {**spec, "params": _normalize_params(spec.get("params"))}
     reason = _check_spec(spec, catalog)
@@ -431,6 +454,9 @@ def _build_contract(spec: dict, state: dict, interview_id: str, legacy_events: l
     key = _key(spec["role"], template, params)
     if key in seen:                                                                # check 11
         return None, f"duplicates {seen[key]}"
+    covered = _covered_contract(spec, params, evidence, existing)
+    if covered:
+        return None, f"duplicates {covered}"
     metric_id = spec.get("metric_id") or ""
     if not METRIC_ID_RE.match(metric_id):                                          # check 13 (rename, no rejection)
         metric_id = f"{template}_1"
@@ -565,9 +591,10 @@ async def draft_contracts(interview_id: str, state: dict | None = None, call=Non
     kept = [r for r in saved["items"] if r["status"] != "draft"]
     n = max([_draft_num(r["draft_id"]) for r in saved["items"]] or [0])
     seen = _existing_keys(existing)
+    covered = list(existing)
     items, rejected = [], []
     for spec in (output.get("drafts") or [])[:MAX_ITEMS]:
-        fields, reason = _build_contract(spec, state, interview_id, legacy_events, seen, catalog)
+        fields, reason = _build_contract(spec, state, interview_id, legacy_events, seen, catalog, covered)
         if reason:
             rejected.append({"requirement": spec.get("requirement", ""), "reasons": [reason]})
             continue
@@ -575,6 +602,7 @@ async def draft_contracts(interview_id: str, state: dict | None = None, call=Non
         rec = _record(f"DR-{interview_id}-{n}", "contract", fields)
         e = fields["contract"]["expectations"][0]
         seen[_key(fields["contract"]["role"], e["template"], e["params"])] = rec["draft_id"]
+        covered.append({**fields["contract"], "id": rec["draft_id"]})
         items.append(rec)
     for spec in (output.get("open_loops") or [])[:MAX_ITEMS]:
         fields, reason = _build_open_loop(spec, state, interview_id)
@@ -641,6 +669,10 @@ def approve_draft(draft_id: str, actor: str) -> dict:
         approved["open_loops"].append(ol)
         final = {"contract_id": None, "requirement_id": requirement_id}
     _write_json(ct.APPROVED_PATH, approved)
+    if rec["kind"] == "contract":
+        watched = list(st.load_settings()["contracts_watched"])
+        if contract_id not in watched:
+            st.save_settings({"contracts_watched": [*watched, contract_id]}, actor=actor)
     rec.update(status="approved", final_ids=final, decided_by=actor, decided_at=_now())
     _write_json(_drafts_path(interview_id), data)
     _audit(actor, {"approved_draft": draft_id, "id": final["contract_id"] or requirement_id})

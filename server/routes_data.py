@@ -41,15 +41,8 @@ def _contracts() -> list[dict]:
 
 
 def _settings() -> dict:
-    """Client settings, with approved drafted contracts (D5) counted as watched.
-
-    server/settings.py only accepts the five catalog IDs in contracts_watched, so an approved C-06 could never be
-    watched. Approving a draft is the team choosing to watch it; the client's drift_enabled switch still governs all.
-    """
-    s = dict(st.load_settings())
-    watched = list(s.get("contracts_watched", []))
-    s["contracts_watched"] = watched + [c["id"] for c in ct._approved()["contracts"] if c["id"] not in watched]
-    return s
+    """The saved watch list is authoritative, including an explicit empty list."""
+    return st.load_settings()
 
 
 def _events() -> list[dict]:

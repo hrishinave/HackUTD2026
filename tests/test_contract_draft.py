@@ -50,6 +50,8 @@ def tmp_storage(tmp_path, monkeypatch):
     monkeypatch.setattr(cd, "DRAFTS_DIR", tmp_path / "drafts")
     monkeypatch.setattr(ct, "APPROVED_PATH", tmp_path / "approved.json")
     monkeypatch.setattr(st, "AUDIT_PATH", str(tmp_path / "audit.jsonl"))
+    monkeypatch.setattr(st, "SETTINGS_PATH", str(tmp_path / "settings.json"))
+    monkeypatch.setattr(st, "LIVE_EVENTS_PATH", str(tmp_path / "live.jsonl"))
 
 
 @pytest.fixture(autouse=True)
@@ -101,6 +103,28 @@ def test_duplicate_of_existing_contract_rejected():
     assert "duplicates C-02" in run([dup])["rejected"][0]["reasons"]
 
 
+def test_existing_prior_auth_quote_with_alternate_detector_is_rejected():
+    duplicate = spec(
+        requirement="Prior authorization is recorded without clerks putting it into notes.",
+        template="detector_rate", metric_id="see_fax_rate",
+        params={**NULL_PARAMS, "event": "claim_submitted", "tag": "see_fax"},
+        quotes=["If it needs prior auth I put the number in the notes, or sometimes just see fax."],
+    )
+    result = run([duplicate])
+    assert result["items"] == []
+    assert result["rejected"][0]["reasons"] == ["duplicates C-01"]
+
+
+def test_new_notes_workflow_is_not_dropped_just_for_sharing_an_event():
+    text = "When I reconcile charges, I put the adjusted dollar amount in claim notes."
+    state = {**STATE, "transcript": [*STATE["transcript"], {"t_ms": 500000, "text": text}]}
+    new = spec(requirement="Adjusted charges are recorded in charge fields rather than notes.",
+               template="detector_rate", metric_id="amount_in_notes_rate", stated_value=None,
+               params={**NULL_PARAMS, "event": "claim_submitted", "tag": "dollar_amount"}, quotes=[text])
+    result = asyncio.run(cd.draft_contracts("INT-09", state=state, call=stub([new]), legacy_events=LEGACY, persist=False))
+    assert len(result["items"]) == 1 and result["rejected"] == []
+
+
 def test_unprompted_quote_has_no_question():
     ev = run([spec()])["items"][0]["contract"]["evidence"][0]
     assert ev["question_id"] is None and ev["question_origin"] == "unprompted" and ev["timestamp"] == "01:10"
@@ -148,7 +172,7 @@ def test_clerk_claims_exports_exist_and_are_the_only_clerk_exports():
 
 
 def test_approved_contract_appears_in_drift_view(tmp_path, monkeypatch):
-    # settings.py only accepts the five catalog IDs in contracts_watched; approved drafts must still be watched
+    # Approval persists the new contract's watch selection without enabling drift.
     from server import drift as dr
     monkeypatch.setattr(st, "SETTINGS_PATH", str(tmp_path / "s.json"))
     monkeypatch.setattr(st, "LIVE_EVENTS_PATH", str(tmp_path / "live.jsonl"))
@@ -160,6 +184,48 @@ def test_approved_contract_appears_in_drift_view(tmp_path, monkeypatch):
     st.save_settings({"drift_enabled": True}, actor="test")
     rows = TestClient(__import__("server.app", fromlist=["app"]).app).get("/api/drift").json()["contracts"]
     assert ("C-06", "holding") in [(r["contract_id"], r["status"]) for r in rows]
+
+
+def _approve_export():
+    result = asyncio.run(cd.draft_contracts("INT-09", state=STATE, call=stub([spec()]), legacy_events=LEGACY))
+    return cd.approve_draft(result["items"][0]["draft_id"], actor="Keshav")
+
+
+def test_approved_contract_is_returned_by_public_catalog():
+    from server.app import app
+    approved = _approve_export()
+    contracts = TestClient(app).get("/api/contracts").json()
+    assert [c["id"] for c in contracts] == ["C-01", "C-02", "C-03", "C-04", "C-05", approved["contract_id"]]
+    assert all(validate_contract(c) == [] for c in contracts)
+
+
+def test_approval_persists_watch_selection_without_enabling_monitoring():
+    _approve_export()
+    current = st.load_settings()
+    assert "C-06" in current["contracts_watched"]
+    assert current["drift_enabled"] is False
+    assert current["notes_matching"] is False and current["send_to_sf"] is False
+
+
+def test_drafted_contract_can_be_unwatched_and_reselected(tmp_path, monkeypatch):
+    from server.app import app
+    from server import drift as dr
+    post_path = tmp_path / "post.jsonl"
+    post_path.write_text("".join(json.dumps(e) + "\n" for e in POST))
+    monkeypatch.setattr(dr, "POST_EVENTS_PATH", post_path)
+    monkeypatch.setenv("ADMIN_TOKEN", "a")
+    _approve_export()
+    client = TestClient(app)
+    headers = {"X-Admin-Token": "a"}
+    response = client.post("/api/settings", headers=headers, json={"drift_enabled": True, "contracts_watched": []})
+    assert response.status_code == 200
+    assert client.get("/api/drift").json() == {"enabled": True, "contracts": []}
+    response = client.post("/api/settings", headers=headers, json={"contracts_watched": ["C-06"]})
+    assert response.status_code == 200
+    assert [(r["contract_id"], r["status"]) for r in client.get("/api/drift").json()["contracts"]] == [("C-06", "holding")]
+    assert client.post("/api/settings", headers=headers, json={"contracts_watched": ["C-99"]}).status_code == 422
+    client.post("/api/settings", headers=headers, json={"drift_enabled": False})
+    assert client.get("/api/drift").json() == {"enabled": False}
 
 
 def _count_unions(node) -> int:

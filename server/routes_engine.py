@@ -13,6 +13,7 @@ from fastapi import APIRouter, Body, Header, HTTPException, WebSocket, WebSocket
 from fastapi.responses import FileResponse
 
 from server import kb, llm, tts
+from server import contracts as ct
 from server import settings as st
 from server.engine import InterviewSession
 from server.kb import build_brief, load_bank
@@ -338,8 +339,7 @@ def interview_state(interview_id: str):
 @router.get("/api/contracts")
 def get_contracts():
     # E4 merges live interview evidence into these.
-    with open(CONTRACTS_PATH) as f:
-        return json.load(f)["contracts"]
+    return ct.load_all_contracts()
 
 
 @router.websocket("/ws/client/{interview_id}")

@@ -1802,7 +1802,7 @@ For this offline drafting task only, thinking is left at Haiku 5.5's default (ad
 | 8 | `population.filter_key`, if set, is a prop of the population event (template table) | `unknown filter key <k>` |
 | 9 | each quote matches a transcript line: normalised text (lowercase, punctuation removed, spaces collapsed) is a substring of the line, or `difflib.SequenceMatcher` ratio ≥ 0.85 against the best line. Unmatched quotes are removed | (none per quote) |
 | 10 | at least one quote survived step 9 | `quote not found in transcript` |
-| 11 | no existing contract (`load_all_contracts()`) or earlier draft in this run has the same `(role, template, params)`, ignoring population filters | `duplicates <C-id or draft_id>` |
+| 11 | no existing contract (`load_all_contracts()`) or earlier draft in this run has the same `(role, template, params)`, ignoring population filters; also reject a different tag/param when the same role, template and event workflow reuse evidence already quoted by that contract (the same verified quote-matching rule). Unrelated quotes on the same event remain eligible | `duplicates <C-id or draft_id>` |
 | 12 | a `median_duration` draft has a target from spec, stated value or baseline | `no target for a time contract` |
 | 13 | `metric_id` matches `^[a-z][a-z0-9_]{2,40}$`, otherwise it is replaced by `<template>_<n>` (no rejection) | (none) |
 | 14 | the assembled contract passes `validate_contract` | `schema: <first error>` |
