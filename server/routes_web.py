@@ -23,6 +23,22 @@ ENVELOPE = set(CATALOG["envelope"]) | {"week"}
 _file_lock = Lock()
 
 
+@router.get("/api/interview-options")
+def interview_options():
+    """Return companies and their interviewable people for the board start flow."""
+    people_path = ROOT / "kb" / "people.json"
+    people = json.loads(people_path.read_text(encoding="utf-8")) if people_path.exists() else {}
+    company = {"id": "medicare_billing_demo", "name": "Medicare Billing Office", "people": []}
+    for person_id, person in sorted(people.items()):
+        company["people"].append({
+            "id": person_id,
+            "label": person.get("label", person_id),
+            "role": person.get("role", ""),
+            "interview_id": person.get("interview_id", ""),
+        })
+    return {"companies": [company]}
+
+
 @router.get("/api/interviews")
 def interviews():
     """List saved and currently running interviews for the board selector."""

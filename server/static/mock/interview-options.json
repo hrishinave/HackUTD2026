@@ -1,0 +1,13 @@
+{
+  "companies": [
+    {
+      "id": "medicare_billing_demo",
+      "name": "Medicare Billing Office",
+      "people": [
+        {"id": "billing_clerk_1", "label": "Billing clerk 1", "role": "billing_clerk", "interview_id": "INT-02"},
+        {"id": "billing_clerk_2", "label": "Billing clerk 2", "role": "billing_clerk", "interview_id": "INT-01"},
+        {"id": "denial_specialist_1", "label": "Denial specialist 1", "role": "denial_specialist", "interview_id": "INT-03"}
+      ]
+    }
+  ]
+}

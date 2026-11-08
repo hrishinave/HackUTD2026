@@ -8,6 +8,8 @@
   };
   const useMocks = new URLSearchParams(window.location.search).get("mock") === "1";
   let selectedInterview = "INT-01";
+  let selectedPerson = "billing_clerk_2";
+  let selectedCompany = "medicare_billing_demo";
   const byId = (id) => document.getElementById(id);
   const title = byId("page-title");
   const status = byId("connection-status");
@@ -60,12 +62,46 @@
     } catch { picker.replaceChildren(element("option", "Could not load previous interviews")); }
   }
 
+  async function loadInterviewOptions() {
+    const companyPicker = byId("company-picker");
+    const personPicker = byId("person-picker");
+    if (!companyPicker || !personPicker) return;
+    try {
+      const response = await fetch(useMocks ? "/static/mock/interview-options.json" : "/api/interview-options", { cache: "no-store" });
+      if (!response.ok) throw new Error("Interview options unavailable");
+      const data = await response.json();
+      companyPicker.replaceChildren(...(data.companies || []).map((company) => {
+        const option = element("option", company.name); option.value = company.id; return option;
+      }));
+      companyPicker.value = selectedCompany;
+      const refreshPeople = () => {
+        const company = (data.companies || []).find((item) => item.id === companyPicker.value);
+        personPicker.replaceChildren(...(company?.people || []).map((person) => {
+          const option = element("option", person.label + " · " + person.role.replaceAll("_", " ")); option.value = person.id; option.dataset.interviewId = person.interview_id; return option;
+        }));
+        if ([...personPicker.options].some((option) => option.value === selectedPerson)) personPicker.value = selectedPerson;
+        else selectedPerson = personPicker.value;
+      };
+      companyPicker.addEventListener("change", () => { selectedCompany = companyPicker.value; refreshPeople(); });
+      personPicker.addEventListener("change", () => {
+        selectedPerson = personPicker.value;
+        const option = personPicker.selectedOptions[0];
+        if (option?.dataset.interviewId) selectedInterview = option.dataset.interviewId;
+      });
+      refreshPeople();
+    } catch {
+      companyPicker.replaceChildren(element("option", "Could not load companies"));
+      personPicker.replaceChildren(element("option", "Could not load people"));
+    }
+  }
+
   async function startNewInterview() {
     const button = byId("start-interview");
     button.disabled = true;
     const next = "INT-" + String(Date.now()).slice(-2);
     try {
-      const response = await fetch("/api/interviews/" + next + "/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ interviewee: "billing_clerk_2" }) });
+      if (!selectedPerson) throw new Error("Choose a person before starting the interview");
+      const response = await fetch("/api/interviews/" + next + "/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ interviewee: selectedPerson, company_id: selectedCompany }) });
       if (!response.ok) throw new Error("Could not start the interview");
       selectedInterview = next;
       await loadInterviewList();
@@ -768,6 +804,7 @@
     }
   });
   loadInterviewList();
+  loadInterviewOptions();
   window.addEventListener("pagehide", () => { ++generation; clearTimeout(pollTimer); controller?.abort(); charts.splice(0).forEach((chart) => chart.destroy()); });
   showRoute();
 })();
