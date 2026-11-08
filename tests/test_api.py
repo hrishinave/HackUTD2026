@@ -91,3 +91,27 @@ def test_new_questions_get_audio_and_state_is_saved_and_restored(monkeypatch, tm
     after = c.get("/api/interviews/T3/state").json()
     assert after["transcript"] == before["transcript"] and after["played"] == before["played"]
     assert after["queue"] == before["queue"]
+
+
+def test_question_call_overlaps_debounce_but_queue_waits_for_silence(monkeypatch):
+    from server import llm
+    monkeypatch.setenv("LLM_PROVIDER", "fake")
+    calls = []
+    real = llm.complete_questions
+    async def spy(brief, user_input):
+        calls.append(time.monotonic())
+        return await real(brief, user_input)
+    monkeypatch.setattr(llm, "complete_questions", spy)
+    c = TestClient(app)
+    c.post("/api/interviews/T4/start", json={"interviewee": "billing_clerk_2"})
+    with c.websocket_connect("/ws/client/T4") as ws:
+        _receive_until(ws, lambda m: m["type"] == "queue")
+        calls.clear()
+        t0 = time.monotonic()
+        ws.send_json({"type": "utterance", "text": "first thought", "final": True, "t_ms": 1000})
+        ws.send_json({"type": "utterance", "text": "and more", "final": True, "t_ms": 1300})
+        msg = _receive_until(ws, lambda m: m["type"] == "queue" and m["based_on_t_ms"] >= 1000)
+        waited = time.monotonic() - t0
+    assert calls and calls[0] - t0 < 0.5            # call starts right away, not after the debounce
+    assert msg["based_on_t_ms"] == 1300             # the queue reflects the latest sentence only
+    assert waited >= 0.9                            # and is still held until 1 s of silence

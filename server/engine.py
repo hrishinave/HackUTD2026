@@ -61,7 +61,11 @@ class InterviewSession:
 
     def begin_call(self) -> tuple[str, int]:
         self.last_called_t = self.last_utterance_t
-        events = [(u["t_ms"], 0, f"[{mmss(u['t_ms'])}] {u['text']}") for u in self.transcript]
+        return self.build_input()
+
+    def build_input(self) -> tuple[str, int]:
+        """(user_input, based_on_t_ms) for the current transcript, without marking it as called on."""
+        events =[(u["t_ms"], 0, f"[{mmss(u['t_ms'])}] {u['text']}") for u in self.transcript]
         events += [(p["played_at"], 1, f"[{p['id']} played at {mmss(p['played_at'])}]") for p in self.played]
         lines = ["<transcript>"] + [e[2] for e in sorted(events, key=lambda e: (e[0], e[1]))] + ["</transcript>"]
         lines.append("Slot status:")

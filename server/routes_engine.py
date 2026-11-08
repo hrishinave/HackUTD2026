@@ -81,6 +81,7 @@ CALLS_PER_INTERVIEW = 800
 BOOK_RESERVE_PER_MINUTE = 10    # bookkeeping stops this far below the per-minute cap
 BOOK_RESERVE_TOTAL = 60         # ... and this far below the per-interview cap
 TICK_S = 0.1
+DEBOUNCE_MS = 1000
 
 
 class Runner:
@@ -95,6 +96,7 @@ class Runner:
         self.call_times: deque[float] = deque()
         self.total_calls = 0
         self.skipped_book = 0
+        self.q_based_on = -1
         self.audio: dict[str, str] = {}      # question_id -> mp3 base64, for questions without a bank clip
         self.voicing: set[str] = set()
         # interview clock: t_ms of the latest utterance and the monotonic time it arrived
@@ -184,21 +186,38 @@ class Runner:
     async def _loop(self) -> None:
         try:
             while self.sockets:
-                if self.session.due_for_call(self.now_ms()):
+                now = self.now_ms()
+                if self.session.due_for_call(now):
                     self._trigger()
-                await asyncio.sleep(TICK_S)
+                # wake exactly when the debounce expires instead of up to TICK_S late
+                pending = self.session.last_utterance_t > self.session.last_called_t
+                wait_ms = self.session.last_utterance_t + DEBOUNCE_MS - now if pending else TICK_S * 1000
+                await asyncio.sleep(max(0.005, min(TICK_S, wait_ms / 1000)))
         except asyncio.CancelledError:
             pass
 
-    def _trigger(self) -> None:
-        user_input, based_on = self.session.begin_call()
-        if self.can_question():
-            if self.q_task and not self.q_task.done():
-                self.q_task.cancel()
-            self._count_call()
-            self.q_task = asyncio.create_task(self._questions(user_input, based_on))
-        else:
+    def on_utterance(self) -> None:
+        """Start the question call as soon as a final sentence arrives; _questions holds the result
+        until the 1 s debounce has passed, so the call's latency overlaps the wait."""
+        self.start_question_call()
+        self.ensure_loop()
+
+    def start_question_call(self) -> None:
+        user_input, based_on = self.session.build_input()
+        if not self.can_question():
             log.warning("%s question call capped (%s total)", self.session.interview_id, self.total_calls)
+            return
+        if self.q_task and not self.q_task.done():
+            self.q_task.cancel()  # a newer sentence supersedes the call in flight
+        self._count_call()
+        self.q_based_on = based_on
+        self.q_task = asyncio.create_task(self._questions(user_input, based_on))
+
+    def _trigger(self) -> None:
+        """Debounce expired: bookkeeping starts now; the question call started on the utterance."""
+        user_input, based_on = self.session.begin_call()
+        if self.q_based_on != based_on:  # no early call covered this sentence (e.g. it was capped)
+            self.start_question_call()
         if self.book_task is None or self.book_task.done():
             if self.can_book():
                 self._count_call()
@@ -208,15 +227,23 @@ class Runner:
 
     async def _questions(self, user_input: str, based_on: int) -> None:
         try:
-            items = await llm.complete_questions(self.session.brief, user_input)
+            try:
+                items = await llm.complete_questions(self.session.brief, user_input)
+            except llm.LLMRefused:
+                log.warning("%s question call refused; keeping queue", self.session.interview_id)
+                items = []
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:  # timeout, API error, bad JSON: keep the old queue
+                log.warning("%s question call failed (%s: %s); keeping queue", self.session.interview_id, type(e).__name__, e)
+                items = []
+            hold_ms = based_on + DEBOUNCE_MS - self.now_ms()
+            if hold_ms > 0:  # never show a queue before 1 s of silence
+                await asyncio.sleep(hold_ms / 1000)
         except asyncio.CancelledError:
             return
-        except llm.LLMRefused:
-            log.warning("%s question call refused; keeping queue", self.session.interview_id)
-            items = []
-        except Exception as e:  # timeout, API error, bad JSON: keep the old queue
-            log.warning("%s question call failed (%s: %s); keeping queue", self.session.interview_id, type(e).__name__, e)
-            items = []
+        if self.session.last_utterance_t > based_on:
+            return  # a newer sentence arrived; its own call will deliver
         before = self.session.queue_message()
         self.session.apply_questions(items, self.now_ms(), based_on)
         after = self.session.queue_message()
@@ -341,7 +368,10 @@ async def client_ws(ws: WebSocket, interview_id: str):
                 if msg.get("final", True):
                     t_ms = int(msg.get("t_ms", 0))
                     runner.sync_clock(t_ms)
-                    runner.session.add_utterance(str(msg.get("text", "")), t_ms)
+                    text = str(msg.get("text", ""))
+                    if text.strip():
+                        runner.session.add_utterance(text, t_ms)
+                        runner.on_utterance()
             elif kind == "played":
                 qid = str(msg.get("question_id", ""))
                 runner.session.mark_played(qid, int(msg.get("t_ms", runner.now_ms())))
