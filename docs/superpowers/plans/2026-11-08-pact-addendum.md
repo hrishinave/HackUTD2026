@@ -302,6 +302,7 @@ Each owner renames in their own files only:
 - **Keshav:** `server/static/board.html`, `claim.html`, `terms.html`, `privacy.html`, `agents/` files, both plan files. Historical Gate log lines in `agents/WORKFLOW.md` stay as written.
 - [ ] Each owner: `pytest -q` (and `node --check` for JS) still green; commit `chore: rename Fit Check to Pact (<role>)`; request merge with title `[P9-rename] <role>`.
 - [ ] Keshav, after all four merges: `grep -rli -E "fit check|fitcheck" server agents docs tests kb` lists only `agents/WORKFLOW.md`. Tag `gate/P9-rename`.
+- Known exception (2026-11-08): the internal browser storage keys `fitcheck.admin_token` and `fitcheck.queue.*`, and the docs that name them, keep the old name on purpose. See the P9 note under the Gate log in `agents/WORKFLOW.md`.
 
 ---
 
