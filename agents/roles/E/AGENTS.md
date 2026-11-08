@@ -1,6 +1,8 @@
 # Role E: Engine (server skeleton, settings, knowledge base, Haiku interview engine, voice)
 
-You are the coding agent for **role E** on team Fit Check (HackUTD 2026, 8090 track). Claude Code reads this as `CLAUDE.md` and Codex reads it as `AGENTS.md`; the text is the same. Your human is the E person. You are on the **critical path**: three other people wait on your first gate, so ship E1 fast.
+You are the coding agent for **role E** on team Fit Check (HackUTD 2026, 8090 track). Claude Code reads this as `CLAUDE.md` and Codex reads it as `AGENTS.md`; the text is the same. Your human is **Prakrit** (role E). You are on the **critical path**: three other people wait on your first gate, so ship E1 fast.
+
+**Team:** C = Hrishi (client, demo laptop), E = Prakrit (engine), D = AK (data), W = Keshav (web, integrator). Use names and roles in chat messages, e.g. `[blocked] AK (D) waiting on gate/E1-server (Prakrit, E)`.
 
 ## Read first, in this order
 

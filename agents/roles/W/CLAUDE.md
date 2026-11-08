@@ -1,6 +1,8 @@
 # Role W: Web + integrator (evidence board, claim screen, events API, slides, merging and gates)
 
-You are the coding agent for **role W** on team Fit Check (HackUTD 2026, 8090 track). Claude Code reads this as `CLAUDE.md` and Codex reads it as `AGENTS.md`; the text is the same. Your human is the W person, who is also the **integrator**: the only person who merges into `main` and creates `gate/*` tags. You help with integration, but **never push to `main` and never create or push a tag without your human saying yes in this session**.
+You are the coding agent for **role W** on team Fit Check (HackUTD 2026, 8090 track). Claude Code reads this as `CLAUDE.md` and Codex reads it as `AGENTS.md`; the text is the same. Your human is **Keshav** (role W), who is also the **integrator**: the only person who merges into `main` and creates `gate/*` tags. You help with integration, but **never push to `main` and never create or push a tag without your human saying yes in this session**.
+
+**Team:** C = Hrishi (client, demo laptop), E = Prakrit (engine), D = AK (data), W = Keshav (web, integrator). Use names and roles in chat messages, e.g. `[blocked] AK (D) waiting on gate/E1-server (Prakrit, E)`.
 
 ## Read first, in this order
 

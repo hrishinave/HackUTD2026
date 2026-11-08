@@ -1,16 +1,16 @@
 # Fit Check: parallel workflow, branches and gates
 
-Four people work in parallel on four branches. Dependencies between them are handled with **gates**. A gate is a git tag `gate/<name>` on `main`. Only the integrator (the W person) creates gate tags, and only after merging the producing branch, running every test and doing the manual check listed below. An agent that needs a gate checks for the tag. If the tag isn't there, the agent stops and waits for its human.
+Four people work in parallel on four branches: Hrishi (C), Prakrit (E), AK (D) and Keshav (W). Dependencies between them are handled with **gates**. A gate is a git tag `gate/<name>` on `main`. Only the integrator (Keshav, W) creates gate tags, and only after merging the producing branch, running every test and doing the manual check listed below. An agent that needs a gate checks for the tag. If the tag isn't there, the agent stops and waits for its human.
 
 ## Branches
 
 | Branch | Owner | Starts from |
 |---|---|---|
-| `main` | Integrator (W) only | Bootstrap commit, tag `gate/G0-bootstrap` |
-| `client` | C | `main` at `gate/G0-bootstrap` |
-| `engine` | E | `main` at `gate/G0-bootstrap` |
-| `data` | D | `main` at `gate/G0-bootstrap` |
-| `web` | W | `main` at `gate/G0-bootstrap` |
+| `main` | Keshav (W, integrator) only | Bootstrap commit, tag `gate/G0-bootstrap` |
+| `client` | Hrishi (C) | `main` at `gate/G0-bootstrap` |
+| `engine` | Prakrit (E) | `main` at `gate/G0-bootstrap` |
+| `data` | AK (D) | `main` at `gate/G0-bootstrap` |
+| `web` | Keshav (W) | `main` at `gate/G0-bootstrap` |
 
 Nobody pushes to `main` except the integrator. Nobody force-pushes. Tags are never moved or deleted.
 
@@ -121,4 +121,4 @@ The integrator appends one line per gate: time, tag, commit, check result.
 
 | Time | Tag | Commit | Result |
 |---|---|---|---|
-| | gate/G0-bootstrap | | |
+| 2026-11-08, before 0:00 | gate/G0-bootstrap | d8963fb | Pushed with plan, contracts, agents/, .gitignore, .env.example, requirements (pushed from AK's laptop before roles were assigned) |

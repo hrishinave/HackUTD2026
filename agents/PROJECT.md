@@ -42,16 +42,16 @@ An 8090 interviewer wears speaker-only Meta glasses, paired straight to a MacBoo
 | Drift | A contract measured outside its tolerance for 2 consecutive post-launch weeks |
 | Finding | A drifting contract with type, cost, lineage and explanation (plan section 8.4) |
 | Gate | A git tag `gate/<name>` on `main` that says a dependency is ready (see `agents/WORKFLOW.md`) |
-| Integrator | The W person. The only one who pushes to `main` and creates gate tags |
+| Integrator | Keshav (role W). The only one who pushes to `main` and creates gate tags |
 
 ## Who does what
 
-| Role | Branch | Builds | Plan tasks |
-|---|---|---|---|
-| **C** Client | `client` | Interviewer page (speech, taps, playback, freshness gate), glasses device tests, Client settings panel | C1–C4 |
-| **E** Engine | `engine` | Server skeleton and route files, settings module, knowledge base and question bank, Haiku adapter, interview engine, voice clips, lineage API | E1–E4 |
-| **D** Data | `data` | Legacy company in a box (COBOL, manual, answer key, scripts), contracts loader, simulator, drift detector, findings, Software Factory payload and stub, eval | D1–D4 |
-| **W** Web + integrator | `web` | Evidence board views, claim screen and events API, Terms/Privacy, slides; merges branches and tags gates | W1–W4 |
+| Role | Person | Branch | Builds | Plan tasks |
+|---|---|---|---|---|
+| **C** Client | Hrishi (demo laptop, glasses paired here) | `client` | Interviewer page (speech, taps, playback, freshness gate), glasses device tests, Client settings panel | C1–C4 |
+| **E** Engine | Prakrit | `engine` | Server skeleton and route files, settings module, knowledge base and question bank, Haiku adapter, interview engine, voice clips, lineage API | E1–E4 |
+| **D** Data | AK | `data` | Legacy company in a box (COBOL, manual, answer key, scripts), contracts loader, simulator, drift detector, findings, Software Factory payload and stub, eval | D1–D4 |
+| **W** Web + integrator | Keshav | `web` | Evidence board views, claim screen and events API, Terms/Privacy, slides; merges branches and tags gates | W1–W4 |
 
 ## Where things live
 

@@ -20,11 +20,11 @@ git status                                      # CLAUDE.md, AGENTS.md and .env 
 
 Then open Claude Code or Codex in the repo folder and say: "Read CLAUDE.md (or AGENTS.md) and the files it lists, then start my first task." The agent knows its role, its files, its gates and when to stop and wait.
 
-| Role | Branch | First task | First gate it waits on |
-|---|---|---|---|
-| C | `client` | C1 at 0:30 | `gate/E1-server` for the socket test in C2 |
-| E | `engine` | E1 at 0:30 | `gate/D1-legacy` for E2 |
-| D | `data` | D1 at 0:30 | `gate/E1-server` for the `/api/simulate` route in D2 |
-| W | `web` | Bootstrap before 0:00, Task 0, then W1 | `gate/E1-server` for the events API in W2 |
+| Person | Role | Branch | First task | First gate it waits on |
+|---|---|---|---|---|
+| Hrishi | C | `client` | C1 at 0:30 (on the demo laptop, glasses paired) | `gate/E1-server` for the socket test in C2 |
+| Prakrit | E | `engine` | E1 at 0:30 | `gate/D1-legacy` for E2 |
+| AK | D | `data` | D1 at 0:30 | `gate/E1-server` for the `/api/simulate` route in D2 |
+| Keshav | W | `web` | Tokens and keys to the chat, Task 0, then W1 (bootstrap is already done) | `gate/E1-server` for the events API in W2 |
 
 If a role file changes on `main`, copy it again (`cp agents/roles/$ROLE/CLAUDE.md CLAUDE.md` and the same for `AGENTS.md`).

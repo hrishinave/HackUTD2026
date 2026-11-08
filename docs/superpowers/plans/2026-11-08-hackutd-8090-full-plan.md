@@ -595,10 +595,10 @@ HackUTD2026/
 
 | ID | Person | Workstream |
 |---|---|---|
-| **C** | Client | Interviewer page (speech, taps, playback), glasses device tests, Client settings panel |
-| **E** | Engine | Server skeleton and route files, settings module, knowledge base and question bank, LLM adapter, interview engine, WebSocket, voice clips |
-| **D** | Data | Legacy company in a box, simulator, drift detector, findings, Software Factory payload and stub, eval |
-| **W** | Web + integrator | Evidence board, claim screen and events API, Terms/Privacy, slides and demo script; **merges every branch into `main` and pushes the gate tags** (see `agents/WORKFLOW.md`) |
+| **C** | Hrishi (client; owns the demo laptop) | Interviewer page (speech, taps, playback), glasses device tests, Client settings panel |
+| **E** | Prakrit (engine) | Server skeleton and route files, settings module, knowledge base and question bank, LLM adapter, interview engine, WebSocket, voice clips |
+| **D** | AK (data) | Legacy company in a box, simulator, drift detector, findings, Software Factory payload and stub, eval |
+| **W** | Keshav (web + integrator) | Evidence board, claim screen and events API, Terms/Privacy, slides and demo script; **merges every branch into `main` and pushes the gate tags** (see `agents/WORKFLOW.md`) |
 
 ## Schedule (7 hours)
 
