@@ -140,7 +140,7 @@ All four device tests passed according to Hrishi's reports; the original T2 fail
 
 ## C2: recognition and WebSocket integration
 
-**Manual Chrome speech check: PENDING.** Automated checks below use synthetic recognition events and cannot establish that a spoken sentence works in Chrome. The C1 T1–T4 results above are historical and are not a substitute for this integrated check.
+**Manual Chrome speech check: PASS (operator-reported).** Hrishi selected “All C2 checks pass” in response to the integrated Chrome test: the spoken sentence appears within about 2 seconds, connected/listening statuses are present, and a fresh queue arrives in the Console with MacBook input / glasses output. Automated checks below are recorded separately. The C1 T1–T4 results above remain historical results.
 
 ### Prerequisites and baseline
 
@@ -170,4 +170,4 @@ All four device tests passed according to Hrishi's reports; the original T2 fail
 
 | C2 check | Result | Notes |
 |---|---|---|
-| Real spoken sentence → final utterance → fresh fake queue in Chrome | PENDING | Hrishi has been asked to perform the procedure above. Automated transport timing is recorded separately. |
+| Real spoken sentence → final utterance → fresh fake queue in Chrome | PASS — operator-reported | Hrishi selected “All C2 checks pass” for the procedure above. Includes the approximately 2-second final, connected/listening statuses, and fresh fake queue in Chrome. No independent timing trace or raw transcript was supplied. |
