@@ -1,7 +1,7 @@
 (() => {
   const root = document.getElementById('settings-view');
   if (!root) return;
-  const TOKEN_KEY = 'client_evidence.admin_token';
+  const TOKEN_KEY = 'pact.admin_token';
   const booleanKeys = ['drift_enabled', 'notes_matching', 'send_to_sf'];
   let baseline;
   let catalog = [];

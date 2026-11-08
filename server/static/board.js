@@ -11,7 +11,6 @@
   let selectedPerson = "billing_clerk_2";
   let selectedCompany = "medicare_billing_demo";
   let selectedCompanyName = "";
-  let liveSocket;
   let recognition;
   const byId = (id) => document.getElementById(id);
   const title = byId("page-title");
@@ -34,11 +33,19 @@
   let feedbackFinding;
   const mockFiled = new Map();
   const requirementCache = new Map();
+  const ADMIN_TOKEN_KEY = "pact.admin_token";
+
+  // Company-scoped Pact routes get ?company_id= for the company selected on the board.
+  const SCOPED_PATH = /^\/api\/(settings|drift|findings|lifecycle|filed)(\/|\?|$)|^\/api\/contracts\/[^/?]+\/sf-requirement/;
+  function scopedPath(path) {
+    if (useMocks || !SCOPED_PATH.test(path)) return path;
+    return path + (path.includes("?") ? "&" : "?") + "company_id=" + encodeURIComponent(selectedCompany);
+  }
 
   // Live route first; while a teammate's route is not merged yet (FastAPI's bare "Not Found"), use the preview file.
   async function liveOrPreview(endpoint, mock, init = {}) {
     if (useMocks) return { response: await fetch(mock, { signal: init.signal, cache: "no-store" }), preview: true };
-    const response = await fetch(endpoint, { cache: "no-store", ...init });
+    const response = await fetch(scopedPath(endpoint), { cache: "no-store", ...init });
     if (response.status === 404 || response.status === 405) {
       const body = await response.clone().json().catch(() => null);
       if (body?.detail === "Not Found" || body?.detail === "Method Not Allowed") return { response: await fetch(mock, { signal: init.signal, cache: "no-store" }), preview: true };
@@ -178,48 +185,355 @@
     }
   }
 
-  async function startNewInterview() {
-    const button = byId("start-interview-begin");
-    button.disabled = true;
-    const next = "INT-" + String(Date.now()).slice(-2);
-    try {
-      const personName = byId("person-name").value.trim();
-      const personPosition = byId("person-position").value.trim();
-      selectedCompanyName = byId("company-picker").value.trim();
-      if (!selectedCompanyName || !personName || !personPosition) throw new Error("Enter the company, person's name, and position before starting");
-      const response = await fetch("/api/interviews/" + next + "/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ interviewee: selectedPerson, company_id: selectedCompany, company_name: selectedCompanyName, person_name: personName, position: personPosition }) });
-      if (!response.ok) throw new Error("Could not start the interview");
-      selectedInterview = next;
-      byId("start-interview-dialog").close();
-      await loadInterviewList();
-      byId("interview-picker").value = selectedInterview;
-      startRecordingTransport();
-      showRoute();
-    } catch (error) {
-      const message = byId("start-interview-message");
-      if (message) message.textContent = error.message;
-    } finally { button.disabled = false; }
+  // ---- Live interview: speech in, question queue out, glasses media keys ----
+  // Times sent to the server are milliseconds since the interview began (live.T0), never wall clock.
+  const live = {
+    active: false, starting: false, id: "", T0: Date.now(), ws: null, outbox: [], reconnectTimer: null,
+    queue: { based_on_t_ms: 0, questions: [] }, queueReady: false, lastFinalT: 0, lastPlayed: null,
+    clips: Object.create(null), playing: false, tapPending: false, serial: 0, tailTimer: null,
+    lastTapToAudioMs: null, recognitionActive: false, recognitionTimer: null, recognitionRetryMs: 0
+  };
+  const liveNow = () => Date.now() - live.T0;
+  const player = new Audio();
+  let nextIdPromise = null;
+  const setLive = (id, text) => { const node = byId(id); if (node) node.textContent = text; };
+  const clipWaiters = new Map(); // question_id -> resolvers waiting for its pushed ElevenLabs clip
+
+  // The server pushes each question's audio ~0.3-1 s after the queue. Resolve as soon as it arrives, or after maxMs.
+  function waitForClip(questionId, maxMs) {
+    if (live.clips[questionId]) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      const finish = (arrived) => {
+        clearTimeout(timer);
+        const list = clipWaiters.get(questionId) || [];
+        const remaining = list.filter((item) => item !== finish);
+        if (remaining.length) clipWaiters.set(questionId, remaining); else clipWaiters.delete(questionId);
+        resolve(arrived);
+      };
+      const timer = setTimeout(() => finish(false), maxMs);
+      clipWaiters.set(questionId, [...(clipWaiters.get(questionId) || []), finish]);
+    });
   }
 
-  function startRecordingTransport() {
+  async function fetchNextInterviewId() {
+    if (!useMocks) {
+      try {
+        const response = await fetch("/api/interviews/next-id", { cache: "no-store" });
+        if (response.ok) {
+          const data = await response.json();
+          if (/^INT-\d{2,}$/.test(data?.interview_id || "")) return data.interview_id;
+        }
+      } catch { /* Fall back to the interview list below. */ }
+    }
+    const response = await fetch(useMocks ? "/static/mock/interviews.json" : "/api/interviews", { cache: "no-store" });
+    if (!response.ok) throw new Error("Could not choose an interview ID. Check the local server and try again.");
+    let max = 0;
+    for (const item of await response.json()) {
+      const match = /^INT-(\d+)$/.exec(item?.interview_id || "");
+      if (match) max = Math.max(max, Number(match[1]));
+    }
+    if (live.id) max = Math.max(max, Number(/^INT-(\d+)$/.exec(live.id)?.[1] || 0));
+    return "INT-" + String(max + 1).padStart(2, "0");
+  }
+
+  function prefetchNextId() { nextIdPromise = fetchNextInterviewId().catch(() => null); }
+
+  function renderLive() {
+    const rows = live.queue.questions.slice(0, 3).map((question, index) => {
+      const row = element("li");
+      row.append(element("span", (index === 0 ? "NEXT · " : index === 1 ? "SECOND · " : "THIRD · ") + (question.cue || "Detail:"), "queue-cue"));
+      row.append(element("p", question.text || ""));
+      row.append(element("span", [question.id, question.target].filter(Boolean).join(" · "), "question-meta id"));
+      return row;
+    });
+    if (!rows.length) rows.push(element("li", live.active ? "Waiting for a question from the interview engine." : "No live interview.", "empty-copy"));
+    byId("live-queue").replaceChildren(...rows);
+    const ready = live.active && live.queueReady;
+    byId("live-ask").disabled = !ready || !live.queue.questions.length;
+    byId("live-skip").disabled = !ready || live.queue.questions.length < 2;
+    byId("live-repeat").disabled = !live.active || !live.lastPlayed;
+    byId("live-end").disabled = !live.active;
+    setLive("live-latency", live.lastTapToAudioMs === null ? "—" : live.lastTapToAudioMs + " ms");
+    setLive("live-id", live.id || "");
+  }
+
+  function liveSend(message) {
+    const text = JSON.stringify(message);
+    if (live.ws && live.ws.readyState === WebSocket.OPEN) live.ws.send(text);
+    else if (live.active) live.outbox.push(text);
+  }
+
+  function connectLive() {
+    if (!live.active || !live.id) return;
+    if (live.ws && (live.ws.readyState === WebSocket.CONNECTING || live.ws.readyState === WebSocket.OPEN)) return;
+    clearTimeout(live.reconnectTimer);
+    setLive("live-connection", "connecting…");
     const scheme = location.protocol === "https:" ? "wss:" : "ws:";
-    liveSocket?.close();
-    liveSocket = new WebSocket(scheme + "//" + location.host + "/ws/client/" + encodeURIComponent(selectedInterview));
-    liveSocket.addEventListener("open", () => { liveSocket.send(JSON.stringify({ type: "hello", client: "consultancy-board" })); status.textContent = "Recording · live interview transport connected"; });
-    liveSocket.addEventListener("close", () => { if (selectedInterview) status.textContent = "Interview started · transport disconnected"; });
+    const socket = new WebSocket(scheme + "//" + location.host + "/ws/client/" + encodeURIComponent(live.id));
+    live.ws = socket;
+    socket.onopen = () => {
+      if (live.ws !== socket) return;
+      socket.send(JSON.stringify({ type: "hello", device: "laptop-chrome", client: "consultancy-board", app_version: "0.2" }));
+      while (live.outbox.length && socket.readyState === WebSocket.OPEN) socket.send(live.outbox.shift());
+      setLive("live-connection", "connected");
+    };
+    socket.onmessage = (event) => {
+      if (live.ws !== socket) return;
+      try { onLiveMessage(JSON.parse(event.data)); } catch (error) { console.error("Server message could not be read:", error); }
+    };
+    socket.onclose = () => {
+      if (live.ws !== socket || !live.active) return;
+      setLive("live-connection", "disconnected; reconnecting in one second");
+      clearTimeout(live.reconnectTimer);
+      live.reconnectTimer = setTimeout(connectLive, 1000);
+    };
+    socket.onerror = () => { if (live.ws === socket) setLive("live-connection", "error; waiting to reconnect"); };
+  }
+
+  function onLiveMessage(message) {
+    if (message.type === "queue") {
+      live.queue = { based_on_t_ms: Number(message.based_on_t_ms) || 0, questions: (message.questions || []).slice(0, 3) };
+      live.queueReady = true;
+      renderLive();
+    } else if (message.type === "audio" && message.question_id && message.mp3_b64) {
+      live.clips[message.question_id] = "data:audio/mpeg;base64," + message.mp3_b64;
+      for (const finish of clipWaiters.get(message.question_id) || []) finish(true);
+    } else if (message.type === "ack") {
+      if (message.of === "played") setLive("live-ack", "Server recorded " + (message.question_id || "the question") + " as played.");
+    }
+  }
+
+  function getRecognition() {
+    if (recognition !== undefined) return recognition;
     const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!Speech) return;
-    recognition?.stop();
-    recognition = new Speech();
+    recognition = Speech ? new Speech() : null;
+    if (!recognition) return null;
     recognition.continuous = true; recognition.interimResults = false; recognition.lang = "en-US";
+    recognition.onstart = () => { live.recognitionActive = true; setLive("live-recognition", "listening"); };
     recognition.onresult = (event) => {
+      if (!live.active || live.playing) return; // do not transcribe the question being played
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        if (!event.results[index].isFinal || !liveSocket || liveSocket.readyState !== WebSocket.OPEN) continue;
-        liveSocket.send(JSON.stringify({ type: "utterance", text: event.results[index][0].transcript.trim(), final: true, t_ms: Date.now() }));
+        if (!event.results[index].isFinal) continue;
+        const text = event.results[index][0].transcript.trim();
+        if (!text) continue;
+        live.lastFinalT = liveNow();
+        liveSend({ type: "utterance", text, final: true, t_ms: live.lastFinalT });
+        setLive("live-last-final", text);
       }
     };
-    recognition.onend = () => { if (selectedInterview && liveSocket?.readyState === WebSocket.OPEN) { try { recognition.start(); } catch {} } };
-    try { recognition.start(); } catch {}
+    recognition.onend = () => {
+      live.recognitionActive = false;
+      if (!live.active || live.recognitionBlocked) return;
+      clearTimeout(live.recognitionTimer);
+      live.recognitionTimer = setTimeout(() => { live.recognitionTimer = null; if (live.active) startRecognition(); }, live.recognitionRetryMs);
+      live.recognitionRetryMs = 0;
+    };
+    recognition.onerror = (event) => {
+      if (["not-allowed", "service-not-allowed", "audio-capture"].includes(event.error)) {
+        clearTimeout(live.recognitionTimer);
+        setLive("live-recognition", "microphone permission denied or input unavailable; check Chrome's microphone selection");
+        live.recognitionBlocked = true;
+      } else if (event.error === "network") {
+        live.recognitionRetryMs = 1000;
+        setLive("live-recognition", "network error; retrying in one second");
+      } else setLive("live-recognition", event.error + "; restarting");
+      console.error("Recognition error:", event.error);
+    };
+    return recognition;
+  }
+
+  function startRecognition() {
+    const rec = getRecognition();
+    if (!rec) { setLive("live-recognition", "unavailable; open the board in Google Chrome"); return; }
+    live.recognitionBlocked = false;
+    if (live.recognitionActive) return;
+    try { rec.start(); live.recognitionActive = true; setLive("live-recognition", "starting…"); }
+    catch (error) { setLive("live-recognition", "could not start; check the microphone"); console.error("Recognition start failed:", error); }
+  }
+
+  function startMediaKeys() {
+    const silence = byId("silence");
+    silence.volume = 0.01;
+    // Must run synchronously inside the click/submit gesture, or Chrome blocks audio and media keys never arrive.
+    const playback = silence.play();
+    if (!navigator.mediaSession || typeof MediaMetadata === "undefined") {
+      setLive("live-glasses", "media keys unavailable in this browser; use Ask next or Space");
+      return;
+    }
+    navigator.mediaSession.metadata = new MediaMetadata({ title: "Pact interview", artist: "Pact" });
+    navigator.mediaSession.playbackState = "playing";
+    navigator.mediaSession.setActionHandler("play", () => onTap("play"));
+    navigator.mediaSession.setActionHandler("pause", () => onTap("play"));
+    navigator.mediaSession.setActionHandler("nexttrack", () => onTap("next"));
+    navigator.mediaSession.setActionHandler("previoustrack", () => onTap("repeat"));
+    setLive("live-glasses", "starting silent loop…");
+    playback.then(() => { if (live.active) setLive("live-glasses", "ready · tap the glasses to ask"); }).catch((error) => {
+      navigator.mediaSession.playbackState = "none";
+      setLive("live-glasses", "audio could not start; end and begin the interview again");
+      console.error("Silent loop failed:", error);
+    });
+  }
+
+  function speak(question, tapT) {
+    const serial = ++live.serial;
+    clearTimeout(live.tailTimer);
+    player.onplaying = null; player.onended = null; player.onerror = null;
+    player.pause();
+    window.speechSynthesis?.cancel();
+    live.playing = true;
+    let reported = false;
+    let voiceAttempted = false;
+    setLive("live-playback", "Starting question…");
+    const started = () => {
+      if (serial !== live.serial || reported) return;
+      reported = true;
+      live.lastTapToAudioMs = liveNow() - tapT;
+      liveSend({ type: "metric", name: "tap_to_audio_ms", value: live.lastTapToAudioMs });
+      // Lineage records playback when audio actually starts, not when it was attempted.
+      liveSend({ type: "played", question_id: question.id, t_ms: liveNow() });
+      live.lastPlayed = question;
+      setLive("live-playback", "Playing: " + (question.cue || "") + " " + question.text);
+      renderLive();
+    };
+    const done = () => {
+      if (serial !== live.serial) return;
+      clearTimeout(live.tailTimer);
+      live.tailTimer = setTimeout(() => {
+        if (serial !== live.serial) return;
+        live.playing = false;
+        setLive("live-playback", reported ? "Ready for the next question." : "Question could not play. Check the browser audio output.");
+      }, 300);
+    };
+    const browserVoice = () => {
+      if (serial !== live.serial || voiceAttempted) return;
+      voiceAttempted = true;
+      if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === "undefined") { done(); return; }
+      const utterance = new SpeechSynthesisUtterance((question.cue || "") + " " + question.text);
+      utterance.rate = 1.05; utterance.volume = 0.6;
+      utterance.onstart = started; utterance.onend = done;
+      utterance.onerror = (event) => { console.error("Question voice failed:", event.error); done(); };
+      try { window.speechSynthesis.speak(utterance); } catch (error) { console.error("Question voice could not start:", error); done(); }
+    };
+    const source = live.clips[question.id] || question.audio_url;
+    if (source) {
+      player.src = source;
+      player.onplaying = started; player.onended = done; player.onerror = browserVoice;
+      try { player.play().catch(browserVoice); } catch { browserVoice(); }
+    } else browserVoice();
+    renderLive();
+  }
+
+  function waitForFresh(maxMs) {
+    return new Promise((resolve) => {
+      if (live.queue.based_on_t_ms >= live.lastFinalT) return resolve();
+      const begun = Date.now();
+      const timer = setInterval(() => {
+        if (live.queue.based_on_t_ms >= live.lastFinalT || Date.now() - begun >= maxMs) { clearInterval(timer); resolve(); }
+      }, 50);
+    });
+  }
+
+  async function onTap(action) {
+    if (!live.active || !live.queueReady || !["play", "next", "repeat"].includes(action)) return;
+    const tapT = liveNow();
+    setLive("live-last-tap", action + " · " + new Date().toLocaleTimeString());
+    liveSend({ type: "tap", action, t_ms: tapT });
+    if (live.tapPending) return;
+    if (action === "repeat") {
+      if (live.lastPlayed) speak(live.lastPlayed, tapT);
+      else setLive("live-playback", "No question has played yet.");
+      return;
+    }
+    live.tapPending = true;
+    try {
+      if (live.queue.based_on_t_ms < live.lastFinalT) setLive("live-playback", "Waiting up to one second for a fresh question…");
+      await waitForFresh(1000);
+      if (!live.active) return;
+      const question = action === "next" ? live.queue.questions[1] : live.queue.questions[0];
+      if (!question) {
+        setLive("live-playback", action === "next" ? "No second question queued. A single tap asks the top question." : "Waiting for a question from the server.");
+        return;
+      }
+      live.queue.questions = live.queue.questions.filter((item) => item.id !== question.id);
+      renderLive();
+      if (!live.clips[question.id] && !question.audio_url) {
+        live.serial += 1; // stop a finishing earlier question from overwriting this status
+        setLive("live-playback", "Waiting for voice…");
+        await waitForClip(question.id, 1500);
+        if (!live.active) return;
+      }
+      speak(question, tapT); // tap_to_audio_ms still measures from tapT, so it includes this wait
+    } finally { live.tapPending = false; }
+  }
+
+  function stopLive(note) {
+    live.active = false;
+    for (const list of [...clipWaiters.values()]) for (const finish of list) finish(false);
+    clearTimeout(live.reconnectTimer); clearTimeout(live.recognitionTimer); clearTimeout(live.tailTimer);
+    try { recognition?.stop(); } catch { /* already stopped */ }
+    live.recognitionActive = false;
+    const socket = live.ws; live.ws = null;
+    try { socket?.close(); } catch { /* already closed */ }
+    live.outbox.length = 0;
+    byId("silence").pause();
+    live.serial += 1; live.playing = false;
+    player.pause(); window.speechSynthesis?.cancel();
+    if (navigator.mediaSession) {
+      navigator.mediaSession.playbackState = "none";
+      for (const action of ["play", "pause", "nexttrack", "previoustrack"]) { try { navigator.mediaSession.setActionHandler(action, null); } catch { /* unsupported */ } }
+    }
+    setLive("live-glasses", "off"); setLive("live-recognition", "stopped"); setLive("live-connection", "closed");
+    setLive("live-playback", note || "Interview ended.");
+    renderLive();
+  }
+
+  // Called synchronously from the "Begin interview" submit event: audio, media keys and recognition
+  // start before the first await so Chrome treats them as part of the user gesture.
+  function startNewInterview() {
+    if (live.starting) return;
+    const button = byId("start-interview-begin");
+    const message = byId("start-interview-message");
+    const personName = byId("person-name").value.trim();
+    const personPosition = byId("person-position").value.trim();
+    const companyName = byId("company-picker").value.trim();
+    if (!companyName || !personName || !personPosition) { message.textContent = "Enter the company, person's name, and position before starting"; return; }
+    selectedCompanyName = companyName;
+    if (live.active) stopLive("Previous interview ended.");
+    message.textContent = "Starting…";
+    button.disabled = true;
+    live.starting = true;
+    live.active = true;
+    live.T0 = Date.now();
+    live.lastFinalT = 0; live.outbox.length = 0; live.queue = { based_on_t_ms: 0, questions: [] };
+    live.queueReady = false; live.lastPlayed = null; live.clips = Object.create(null); live.lastTapToAudioMs = null; live.id = "";
+    byId("live-panel").hidden = false;
+    setLive("live-connection", "starting interview…"); setLive("live-ack", ""); setLive("live-last-final", "—"); setLive("live-last-tap", "—");
+    setLive("live-playback", "Waiting for the first question.");
+    startMediaKeys();
+    startRecognition();
+    renderLive();
+    (async () => {
+      try {
+        const interviewId = (await (nextIdPromise || Promise.resolve(null))) || await fetchNextInterviewId();
+        nextIdPromise = null;
+        if (!live.active) return;
+        live.id = interviewId; renderLive();
+        const response = await fetch("/api/interviews/" + encodeURIComponent(interviewId) + "/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ interviewee: selectedPerson, company_id: selectedCompany, company_name: selectedCompanyName, person_name: personName, position: personPosition }) });
+        if (!response.ok) throw new Error("Could not start the interview (HTTP " + response.status + ")");
+        if (!live.active) return;
+        connectLive();
+        selectedInterview = interviewId;
+        message.textContent = "";
+        byId("start-interview-dialog").close();
+        await loadInterviewList();
+        byId("interview-picker").value = selectedInterview;
+        if (currentRoute().name !== "interview" || currentRoute().detail) window.location.hash = "#interview"; else showRoute();
+      } catch (error) {
+        stopLive("Interview could not start.");
+        byId("live-panel").hidden = true;
+        message.textContent = error.message || "Could not start the interview";
+      } finally { live.starting = false; button.disabled = false; }
+    })();
   }
 
   function draftInterview(record) { return /^DR-(INT-\d{2})-\d+$/.exec(record.draft_id || "")?.[1] || "Unknown interview"; }
@@ -319,11 +633,11 @@
 
   async function adminToken() {
     let token;
-    try { token = sessionStorage.getItem("fitcheck.admin_token"); } catch { /* Storage may be blocked. */ }
+    try { token = sessionStorage.getItem(ADMIN_TOKEN_KEY); } catch { /* Storage may be blocked. */ }
     if (token) return token;
     byId("draft-token").value = "";
     token = await promptDialog("draft-token-dialog");
-    if (token) { try { sessionStorage.setItem("fitcheck.admin_token", token); } catch { /* The current action can still use the token. */ } }
+    if (token) { try { sessionStorage.setItem(ADMIN_TOKEN_KEY, token); } catch { /* The current action can still use the token. */ } }
     return token;
   }
 
@@ -360,7 +674,7 @@
       } else {
         const response = await fetch("/api/drafts/" + encodeURIComponent(record.draft_id) + "/" + action, { method: "POST", headers: { "Content-Type": "application/json", "X-Admin-Token": token }, body: JSON.stringify(action === "reject" ? { reason } : {}), signal: AbortSignal.timeout(15000) });
         if (response.status === 401) {
-          try { sessionStorage.removeItem("fitcheck.admin_token"); } catch { /* Storage may be blocked. */ }
+          try { sessionStorage.removeItem(ADMIN_TOKEN_KEY); } catch { /* Storage may be blocked. */ }
           throw new Error("Admin token was not accepted. Try the decision again with the client's current token.");
         }
         if (response.status === 409) { await refreshDecisions(); throw new Error("This draft has already been decided. The list has been refreshed."); }
@@ -768,8 +1082,7 @@
 
   async function requestData(config, signal) {
     const rawPath = useMocks ? config.mock : config.endpoint;
-    const scoped = !useMocks && (/\/api\/(settings|drift|findings)/.test(rawPath)) ? rawPath + (rawPath.includes("?") ? "&" : "?") + "company_id=" + encodeURIComponent(selectedCompany) : rawPath;
-    const response = await fetch(scoped, { headers: { Accept: "application/json" }, signal, cache: "no-store" });
+    const response = await fetch(scopedPath(rawPath), { headers: { Accept: "application/json" }, signal, cache: "no-store" });
     if (!response.ok) throw new Error("Evidence unavailable");
     const data = await response.json();
     if (useMocks && config === views.contracts) return [...data, ...structuredClone(mockApprovedContracts)];
@@ -867,9 +1180,23 @@
 
   window.addEventListener("hashchange", showRoute);
   byId("draft-interview").value = useMocks ? "INT-01" : "INT-02";
-  byId("start-interview")?.addEventListener("click", () => { byId("start-interview-message").textContent = ""; byId("start-interview-dialog").showModal(); });
+  byId("start-interview")?.addEventListener("click", () => { prefetchNextId(); byId("start-interview-message").textContent = ""; byId("start-interview-dialog").showModal(); });
   byId("start-interview-cancel")?.addEventListener("click", () => byId("start-interview-dialog").close());
+  // No await before startNewInterview: it starts audio and recognition inside this gesture.
   byId("start-interview-form")?.addEventListener("submit", (event) => { event.preventDefault(); startNewInterview(); });
+  byId("live-ask").addEventListener("click", () => onTap("play"));
+  byId("live-skip").addEventListener("click", () => onTap("next"));
+  byId("live-repeat").addEventListener("click", () => onTap("repeat"));
+  byId("live-end").addEventListener("click", () => stopLive("Interview ended."));
+  document.addEventListener("keydown", (event) => {
+    if (event.code !== "Space" || event.repeat || !live.active) return;
+    const target = event.target;
+    if (document.querySelector("dialog[open]")) return;
+    if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON|A|SUMMARY)$/.test(target.tagName))) return;
+    event.preventDefault();
+    onTap("play");
+  });
+  renderLive();
   byId("interview-picker")?.addEventListener("change", (event) => { selectedInterview = event.target.value; showRoute(); });
   byId("draft-interview").addEventListener("change", () => { byId("draft-message").textContent = ""; renderDrafts(); });
   byId("draft-run").addEventListener("click", runDrafts);

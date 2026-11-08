@@ -55,6 +55,32 @@
           </div>
           <div class="interview-actions"><button id="start-interview" type="button" class="primary-button">Start new interview</button><select id="interview-picker" aria-label="Previous interviews"><option value="">Loading previous interviews…</option></select></div>
         </div>
+        <article id="live-panel" class="panel evidence-panel live-panel" aria-labelledby="live-title" hidden>
+          <header class="panel-heading"><h3 id="live-title">Live interview</h3><span id="live-id" class="id"></span></header>
+          <div class="live-grid">
+            <div class="live-main">
+              <div class="live-controls">
+                <button id="live-ask" type="button" class="primary-button live-ask" disabled>Ask next</button>
+                <button id="live-skip" type="button" class="secondary-button" disabled>Ask second</button>
+                <button id="live-repeat" type="button" class="secondary-button" disabled>Repeat last</button>
+                <button id="live-end" type="button" class="secondary-button live-end" disabled>End interview</button>
+              </div>
+              <p class="live-hint">Glasses: tap asks the next question · next track asks the second · previous track repeats. Keyboard: Space asks next.</p>
+              <p id="live-playback" class="live-playback" role="status" aria-live="polite">No live interview.</p>
+              <ol id="live-queue" class="live-queue" aria-label="Live question queue"></ol>
+            </div>
+            <dl class="live-status" aria-label="Live interview status">
+              <div><dt>Glasses</dt><dd id="live-glasses">off</dd></div>
+              <div><dt>Transcription</dt><dd id="live-recognition">off</dd></div>
+              <div><dt>Connection</dt><dd id="live-connection">off</dd></div>
+              <div><dt>Tap to audio</dt><dd id="live-latency">—</dd></div>
+              <div><dt>Last action</dt><dd id="live-last-tap">—</dd></div>
+              <div><dt>Last sentence heard</dt><dd id="live-last-final">—</dd></div>
+            </dl>
+          </div>
+          <p id="live-ack" class="question-meta" role="status" aria-live="polite"></p>
+        </article>
+        <audio id="silence" src="/static/silence.mp3" loop preload="auto"></audio>
         <div class="loading-grid" role="status" aria-label="Interview data loading">
           <div aria-hidden="true" class="skeleton panel-skeleton skeleton-wide"></div>
           <div aria-hidden="true" class="skeleton panel-skeleton"></div>
