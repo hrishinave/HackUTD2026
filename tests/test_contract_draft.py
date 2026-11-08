@@ -199,6 +199,32 @@ def test_approved_contract_is_returned_by_public_catalog():
     assert all(validate_contract(c) == [] for c in contracts)
 
 
+def test_approved_contract_and_live_lineage_survive_the_same_catalog_merge(monkeypatch):
+    from types import SimpleNamespace
+    from server.app import app
+    from server import routes_engine as engine
+    from server.engine import InterviewSession
+    from server.kb import load_bank
+    from server.llm import BookResult
+    _approve_export()
+    session = InterviewSession("INT-01", "billing_clerk_2", "", load_bank())
+    question = session.apply_questions([{"source": "bank", "bank_id": "PQ-07", "reason": "current practice"}], 60000, 0)[0]
+    session.mark_played(question["id"], 60000)
+    text = "The authorization number goes into the notes."
+    session.add_utterance(text, 61500)
+    session.begin_call()
+    session.apply_bookkeeping(BookResult([{"contract_id": "C-01", "slot": "current_practice", "value": "notes",
+                                           "quote": text, "answered_question_id": question["id"]}], [], []))
+    monkeypatch.setattr(engine, "sessions", {"INT-01": SimpleNamespace(session=session)})
+    contracts = TestClient(app).get("/api/contracts").json()
+    assert len(contracts) == 6
+    assert all(validate_contract(c) == [] for c in contracts)
+    c1 = next(c for c in contracts if c["id"] == "C-01")
+    assert any(e["quote"] == text and e["question_id"] == question["id"] and e["question_origin"] == "ai" for e in c1["evidence"])
+    c6 = next(c for c in contracts if c["id"] == "C-06")
+    assert c6["evidence"][0]["interview_id"] == "INT-09"
+
+
 def test_approval_persists_watch_selection_without_enabling_monitoring():
     _approve_export()
     current = st.load_settings()

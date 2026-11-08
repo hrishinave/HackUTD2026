@@ -115,3 +115,35 @@ def test_question_call_overlaps_debounce_but_queue_waits_for_silence(monkeypatch
     assert calls and calls[0] - t0 < 0.5            # call starts right away, not after the debounce
     assert msg["based_on_t_ms"] == 1300             # the queue reflects the latest sentence only
     assert waited >= 0.9                            # and is still held until 1 s of silence
+
+
+def test_contracts_merge_live_evidence_with_lineage_and_validate(monkeypatch):
+    from server.contracts import validate_contract
+    from server.llm import BookResult
+    monkeypatch.setenv("LLM_PROVIDER", "fake")
+    c = TestClient(app)
+    c.post("/api/interviews/INT-01/start", json={"interviewee": "billing_clerk_2"})
+    c.post("/api/interviews/LIVE9/start", json={"interviewee": "billing_clerk_2"})  # not INT-NN: ignored
+    for iid in ("INT-01", "LIVE9"):
+        s = routes_engine.sessions[iid].session
+        q = s.apply_questions([{"source": "bank", "bank_id": "PQ-07", "cue": "Gap:", "text": "", "target": "", "reason": "r"}], 60_000, 0)
+        qid = next(x["id"] for x in q if x.get("bank_id") == "PQ-07")
+        s.mark_played(qid, 60_000)
+        s.add_utterance("I put the number in the notes, or sometimes just see fax.", 61_500)
+        s.begin_call()
+        s.apply_bookkeeping(BookResult([{"contract_id": "C-01", "slot": "current_practice", "value": "notes",
+                                         "quote": "I put the number in the notes, or sometimes just see fax.",
+                                         "answered_question_id": qid}], [], []))
+    contracts = c.get("/api/contracts").json()
+    assert [k["id"] for k in contracts] == ["C-01", "C-02", "C-03", "C-04", "C-05"]
+    for k in contracts:
+        assert validate_contract(k) == [], (k["id"], validate_contract(k))
+    c01 = contracts[0]
+    live = [e for e in c01["evidence"] if e["interview_id"] == "INT-01"]
+    assert live == [{"quote": "I put the number in the notes, or sometimes just see fax.", "speaker": "Billing clerk 2",
+                     "interview_id": "INT-01", "timestamp": "01:01", "question_id": qid, "question_origin": "ai"}]
+    assert all(e["interview_id"] != "LIVE9" for e in c01["evidence"])
+    assert c01["confidence"]["said"] is True
+    # contracts without live evidence keep the catalog's
+    assert contracts[4]["evidence"] and all(e["interview_id"] != "INT-01" for e in contracts[4]["evidence"])
+    routes_engine.sessions.pop("INT-01"); routes_engine.sessions.pop("LIVE9")
