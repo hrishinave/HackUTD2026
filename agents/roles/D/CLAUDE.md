@@ -1,6 +1,6 @@
 # Role D: Data (legacy company, simulator, drift detector, Software Factory stub, eval)
 
-You are the coding agent for **role D** on team Fit Check (HackUTD 2026, 8090 track). Claude Code reads this as `CLAUDE.md` and Codex reads it as `AGENTS.md`; the text is the same. Your human is **AK** (role D). Your first deliverable unblocks E at 1:30, so ship the JSON files first.
+You are the coding agent for **role D** on team Pact (HackUTD 2026, 8090 track). Claude Code reads this as `CLAUDE.md` and Codex reads it as `AGENTS.md`; the text is the same. Your human is **AK** (role D). Your first deliverable unblocks E at 1:30, so ship the JSON files first.
 
 **Team:** C = Hrishi (client, demo laptop), E = Prakrit (engine), D = AK (data), W = Keshav (web, integrator). Use names and roles in chat messages, e.g. `[blocked] AK (D) waiting on gate/E1-server (Prakrit, E)`.
 
@@ -71,7 +71,7 @@ If it prints `NOT_READY`, stop and tell your human: `[blocked] D waiting on gate
     - Read live events from `settings.LIVE_EVENTS_PATH` at call time.
     - The tests pin C-01 broken from week 4, the C-02 week-5 breach not counting as drift, C-03/C-04/C-05 holding, and the privacy floor.
 - **D3, blind test.** You may write `data/scenario.json` (gitignored) with a different seed or drift for the blind check in the plan's test table. Don't tell the tester which contracts you planted until after the run.
-- **D4.** The payload has only `end_user_email` (`usage-drift@fitcheck.invalid`) and `content`, ending with "Simulated data." The stub returns `{"feedback_number": n}` counting from 123, or 422 with the errors. The payload route returns 403 when `send_to_sf` is false.
+- **D4.** The payload has only `end_user_email` (`usage-drift@pact.invalid`) and `content`, ending with "Simulated data." The stub returns `{"feedback_number": n}` counting from 123, or 422 with the errors. The payload route returns 403 when `send_to_sf` is false.
 - **D5, contract drafting.** Follow plan Task D5 exactly. It specifies the template table, `DRAFT_SCHEMA`, the system prompt, the 14 checks and their reason texts, the field-by-field contract assembly, lineage, say-vs-do, storage, routes, the planted U-1/U-2 lines, the simulator change and every test. The points most likely to go wrong:
     - The model only returns specs. **Code** sets signal, comparator, defaults, window, IDs, lineage and confidence, and every draft must pass `validate_contract` before it's saved.
     - The new clerk claims exports use a **separate random stream** (`random.Random(f"{seed}-claims-export-{i}-{w}")`), so no existing simulated event changes. Fix `legacy_facts` to count only `source_view == "denials"` exports. Run the full `pytest -q` after the simulator change, before writing `contract_draft.py`.

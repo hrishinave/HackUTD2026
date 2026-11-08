@@ -29,6 +29,93 @@
   let drawerGeneration = 0;
   const settingsResource = { endpoint: "/api/settings", mock: "/static/mock/settings.json" };
   const draftsResource = { endpoint: "/api/drafts", mock: "/static/mock/drafts.json" };
+  const lifecycleResource = { endpoint: "/api/lifecycle", mock: "/static/mock/lifecycle.json" };
+  const STAGES = ["drafted", "approved", "baselined", "outcome", "renegotiated"];
+  let feedbackFinding;
+  const mockFiled = new Map();
+  const requirementCache = new Map();
+
+  // Live route first; while a teammate's route is not merged yet (FastAPI's bare "Not Found"), use the preview file.
+  async function liveOrPreview(endpoint, mock, init = {}) {
+    if (useMocks) return { response: await fetch(mock, { signal: init.signal, cache: "no-store" }), preview: true };
+    const response = await fetch(endpoint, { cache: "no-store", ...init });
+    if (response.status === 404 || response.status === 405) {
+      const body = await response.clone().json().catch(() => null);
+      if (body?.detail === "Not Found" || body?.detail === "Method Not Allowed") return { response: await fetch(mock, { signal: init.signal, cache: "no-store" }), preview: true };
+    }
+    return { response, preview: false };
+  }
+
+  async function readLifecycle(signal) {
+    try {
+      const { response, preview } = await liveOrPreview(lifecycleResource.endpoint, lifecycleResource.mock, { signal, headers: { Accept: "application/json" } });
+      if (!response.ok) return null;
+      return { stages: await response.json(), preview };
+    } catch { return null; }
+  }
+
+  function stageStrip(entry) {
+    const strip = element("ol", null, "stage-strip");
+    strip.setAttribute("aria-label", "Contract lifecycle");
+    const reached = entry?.stages || {};
+    const outcome = reached.broken ? "broken" : reached.kept ? "kept" : "kept or broken";
+    for (const name of STAGES) {
+      const label = name === "outcome" ? outcome : name;
+      const isReached = name === "outcome" ? Boolean(reached.broken || reached.kept) : reached[name] === true;
+      const isCurrent = entry && (name === "outcome" ? ["kept", "broken"].includes(entry.stage) : entry.stage === name);
+      const item = element("li", label, "stage");
+      item.dataset.reached = String(isReached);
+      if (name === "outcome" && reached.broken) item.dataset.broken = "true";
+      if (isCurrent) { item.setAttribute("aria-current", "step"); item.append(element("span", "current", "stage-current")); }
+      strip.append(item);
+    }
+    if (entry?.detail?.watching === "off") strip.append(element("li", "usage watching off", "stage-note"));
+    return strip;
+  }
+
+  async function loadRequirement(contract, panel) {
+    const pre = panel.querySelector("pre");
+    const note = panel.querySelector(".requirement-note");
+    if (requirementCache.has(contract.id)) { pre.textContent = requirementCache.get(contract.id); return; }
+    pre.textContent = "Loading requirement document…";
+    try {
+      const { response, preview } = await liveOrPreview("/api/contracts/" + encodeURIComponent(contract.id) + "/sf-requirement", "/static/mock/sf-requirement.md", { signal: AbortSignal.timeout(6000) });
+      if (!response.ok) throw new Error("unavailable");
+      const text = await response.text();
+      requirementCache.set(contract.id, text);
+      pre.textContent = text;
+      if (preview) note.textContent = "Preview sample (C-01). The live export appears once the requirement route is merged.";
+      panel.querySelectorAll("button").forEach((button) => { button.disabled = false; });
+    } catch { pre.textContent = "Requirement document unavailable. Try again in a moment."; }
+  }
+
+  function requirementView(contract) {
+    const details = element("details", null, "requirement-view");
+    details.append(element("summary", "Requirement view"));
+    const panel = element("div", null, "requirement-panel");
+    panel.append(element("p", "Software Factory Feature Requirements document. Add it to your project.", "muted-copy"));
+    const actions = element("div", null, "draft-actions");
+    const download = element("button", "Download (.md)", "primary-button"); download.type = "button"; download.disabled = true;
+    const copy = element("button", "Copy", "secondary-button"); copy.type = "button"; copy.disabled = true;
+    const status = element("span", "", "question-meta"); status.setAttribute("role", "status");
+    actions.append(download, copy, status);
+    panel.append(actions, element("p", "", "requirement-note question-meta"), element("pre", "", "payload requirement-doc"));
+    download.addEventListener("click", () => {
+      const text = requirementCache.get(contract.id); if (!text) return;
+      const url = URL.createObjectURL(new Blob([text], { type: "text/markdown;charset=utf-8" }));
+      const link = element("a"); link.href = url; link.download = (contract.requirement?.id || "requirement") + "-" + contract.id + ".md";
+      document.body.append(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+    copy.addEventListener("click", async () => {
+      const text = requirementCache.get(contract.id); if (!text) return;
+      try { await navigator.clipboard.writeText(text); status.textContent = "Copied"; }
+      catch { status.textContent = "Copy is blocked here. Use Download instead."; }
+    });
+    details.addEventListener("toggle", () => { if (details.open) loadRequirement(contract, panel); });
+    details.append(panel);
+    return details;
+  }
   const droppedByInterview = new Map();
   let draftRecords = [];
   let mockDraftBundle;
@@ -241,9 +328,9 @@
   }
 
   async function refreshDecisions() {
-    const [records, contracts, interview] = await Promise.all([readDrafts(AbortSignal.timeout(10000)), requestData(views.contracts, AbortSignal.timeout(10000)), requestData(interviewConfig(), AbortSignal.timeout(6000)).catch(() => null)]);
+    const [records, contracts, interview, lifecycle] = await Promise.all([readDrafts(AbortSignal.timeout(10000)), requestData(views.contracts, AbortSignal.timeout(10000)), requestData(interviewConfig(), AbortSignal.timeout(6000)).catch(() => null), readLifecycle(AbortSignal.timeout(6000))]);
     draftRecords = records;
-    renderContracts({ contracts, interview });
+    renderContracts({ contracts, interview, lifecycle });
     renderDrafts();
     received.delete("contracts:"); received.delete("drift:"); lastDrift = null;
   }
@@ -451,6 +538,7 @@
   async function openFeedback(finding, settings) {
     const version = ++drawerGeneration;
     feedbackPayload = null;
+    feedbackFinding = finding;
     byId("sf-file").disabled = true;
     byId("sf-feedback-id").textContent = "FEEDBACK PREVIEW";
     byId("sf-preview-title").textContent = finding.contract_id + " · Usage drift";
@@ -630,6 +718,7 @@
       heading.append(element("h3", contract.id, "id"));
       heading.append(element("span", contract.requirement?.id || "", "id"));
       article.append(heading, element("h4", contract.requirement?.statement || "Requirement", "contract-title"));
+      if (data.lifecycle) article.append(stageStrip(data.lifecycle.stages?.[contract.id]));
       const source = draftRecords.find((record) => record.status === "approved" && record.final_ids?.contract_id === contract.id);
       if (source) article.append(element("p", contract.id + " · drafted from " + draftInterview(source) + ", approved", "draft-label"));
       article.append(element("p", [contract.requirement?.feature, contract.role?.replaceAll("_", " "), contract.signal].filter(Boolean).join(" · "), "contract-meta"));
@@ -658,7 +747,7 @@
       const details = element("details", null, "contract-shape");
       details.append(element("summary", "Contract shape"));
       details.append(element("pre", JSON.stringify({ signal: contract.signal, population: contract.population, expectations: contract.expectations, window: contract.window }, null, 2), "payload"));
-      article.append(details);
+      article.append(details, requirementView(contract));
       list.append(article);
     }
     if (!data.contracts.length) list.append(element("p", "No contracts have been supplied yet.", "empty-copy"));
@@ -736,7 +825,8 @@
         try { draftRecords = await readDrafts(requestController.signal); }
         catch { byId("draft-message").textContent = "Draft records unavailable. Earlier contract evidence is still shown."; }
         const interview = await requestData(interviewConfig(), requestController.signal).catch(() => null);
-        data = { contracts: data, interview, drafts: draftRecords };
+        const lifecycle = await readLifecycle(requestController.signal);
+        data = { contracts: data, interview, drafts: draftRecords, lifecycle };
       }
       if (route.name === "drift") data = { drift: data, findings: await requestData(views.finding, requestController.signal) };
       if (route.name === "finding") data = { findings: data, settings: await requestData(settingsResource, requestController.signal) };
@@ -818,20 +908,26 @@
     });
   });
   byId("sf-file").addEventListener("click", async () => {
-    if (!feedbackPayload) return;
+    if (!feedbackPayload || !feedbackFinding) return;
     const version = drawerGeneration;
-    const payload = feedbackPayload;
+    const findingId = feedbackFinding.id;
     byId("sf-file").disabled = true;
     byId("sf-result").textContent = "Filing simulated feedback…";
     try {
-      const response = await fetch(useMocks ? "/static/mock/sf-reply.json" : "/stub/v2/reporting-api/feedback", useMocks ? { signal: AbortSignal.timeout(6000) } : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(6000) });
+      const { response, preview } = await liveOrPreview("/api/findings/" + encodeURIComponent(findingId) + "/file", "/static/mock/sf-file.json", { method: "POST", signal: AbortSignal.timeout(6000) });
       if (!response.ok) throw new Error("Feedback unavailable");
       const reply = await response.json();
       if (!Number.isInteger(reply.feedback_number)) throw new Error("Invalid feedback response");
+      if (preview) {
+        // Preview: emulate the file-once route so a second click shows the original number.
+        reply.already_filed = mockFiled.has(findingId);
+        if (reply.already_filed) reply.feedback_number = mockFiled.get(findingId); else mockFiled.set(findingId, reply.feedback_number);
+      }
       if (version !== drawerGeneration) return;
       byId("sf-feedback-id").textContent = "FB-" + reply.feedback_number;
-      byId("sf-result").textContent = "FB-" + reply.feedback_number + " filed · Simulated, no live connection";
-      feedbackPayload = null;
+      byId("sf-result").textContent = reply.already_filed ? "Already filed as FB-" + reply.feedback_number : "FB-" + reply.feedback_number + " filed · Simulated, no live connection";
+      byId("sf-file").disabled = false;
+      received.delete("contracts:");
     } catch {
       if (version !== drawerGeneration) return;
       byId("sf-result").textContent = "Feedback was not confirmed. Check the local stub before retrying.";

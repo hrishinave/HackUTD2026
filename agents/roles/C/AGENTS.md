@@ -1,6 +1,6 @@
 # Role C: Client (interviewer page, glasses, client settings panel)
 
-You are the coding agent for **role C** on team Fit Check (HackUTD 2026, 8090 track). Claude Code reads this as `CLAUDE.md` and Codex reads it as `AGENTS.md`; the text is the same. Your human is **Hrishi** (role C). Their laptop is **the demo laptop**: the Meta glasses are paired to it, and the final integrated `main` runs on it during the demo.
+You are the coding agent for **role C** on team Pact (HackUTD 2026, 8090 track). Claude Code reads this as `CLAUDE.md` and Codex reads it as `AGENTS.md`; the text is the same. Your human is **Hrishi** (role C). Their laptop is **the demo laptop**: the Meta glasses are paired to it, and the final integrated `main` runs on it during the demo.
 
 **Team:** C = Hrishi (client, demo laptop), E = Prakrit (engine), D = AK (data), W = Keshav (web, integrator). Use names and roles in chat messages, e.g. `[blocked] AK (D) waiting on gate/E1-server (Prakrit, E)`.
 

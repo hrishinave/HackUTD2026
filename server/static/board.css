@@ -531,3 +531,16 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .drawer-body pre, .contract-shape pre { border: 3px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); }
 .skeleton { border-radius: 0; border: 3px solid var(--ink); }
 @media (max-width: 760px) { .app-shell { grid-template-columns: 1fr; } .rail { border-right: 0; border-bottom: 3px solid var(--ink); padding: 16px; } .primary-nav { grid-template-columns: repeat(4, 1fr); margin-top: 20px; } .primary-nav a { text-align: center; padding: 8px 4px; font-size: 12px; } .rail-note { display: none; } .main-content { padding: 22px 16px; } .panel, .sf-drawer, .small-dialog { box-shadow: 4px 4px 0 var(--ink); } }
+
+/* P8: contract lifecycle strip and Software Factory requirement view */
+.stage-strip { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 14px; padding: 0; list-style: none; counter-reset: stage; }
+.stage { position: relative; padding: 5px 9px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--muted); font: 11px "IBM Plex Mono", ui-monospace, monospace; text-transform: capitalize; }
+.stage[data-reached="true"] { color: var(--panel); background: var(--accent); border-color: var(--accent); }
+.stage[data-reached="true"][data-broken="true"] { background: var(--broken); border-color: var(--broken); }
+.stage[aria-current="step"] { outline: 2px solid var(--ink); outline-offset: 1px; font-weight: 500; }
+.stage-current { margin-left: 6px; padding-left: 6px; border-left: 1px solid currentColor; text-transform: none; }
+.stage-note { align-self: center; color: var(--muted); font-size: 11px; }
+.requirement-view { margin-top: 12px; }
+.requirement-view summary { cursor: pointer; color: var(--accent); font-size: 13px; font-weight: 500; }
+.requirement-panel { display: grid; gap: 10px; margin-top: 10px; }
+.requirement-doc { max-height: 420px; overflow: auto; padding: 12px; border: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; }
