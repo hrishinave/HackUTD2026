@@ -2,11 +2,38 @@
 import logging
 import os
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Body, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
+from server import settings as st
+
 log = logging.getLogger("fitcheck.engine")
-router = APIRouter()
+
+
+def _startup_prune() -> None:
+    try:
+        st.prune_old_events()
+    except Exception:  # never block startup on a bad events file
+        log.exception("prune_old_events failed")
+
+
+router = APIRouter(on_startup=[_startup_prune])
+
+
+@router.get("/api/settings")
+def get_settings():
+    return {**st.load_settings(), "audit": st.recent_audit(20)}
+
+
+@router.post("/api/settings")
+def post_settings(body: dict = Body(...), x_admin_token: str | None = Header(default=None)):
+    expected = os.environ.get("ADMIN_TOKEN")
+    if not expected or x_admin_token != expected:
+        raise HTTPException(status_code=401, detail="admin token required")
+    try:
+        return st.save_settings(body, actor=st.load_settings()["admin"])
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
 STATIC_DIR = "server/static"
 
