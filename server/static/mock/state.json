@@ -1,0 +1,41 @@
+{
+  "interview_id": "INT-01",
+  "interviewee": "billing_clerk_2",
+  "label": "Billing clerk 2",
+  "transcript": [
+    {"t_ms": 860000, "text": "Walk me through a claim that needs prior auth."},
+    {"t_ms": 872000, "text": "If it needs prior auth I put the number in the notes, or sometimes just 'see fax'."},
+    {"t_ms": 891000, "text": "Pretty much every imaging claim for Medicare Advantage needs one."},
+    {"t_ms": 930000, "text": "If I have to open a claim twice, something went wrong."},
+    {"t_ms": 1265000, "text": "If coverage changes after the visit, it lands in my queue and I re-run eligibility."},
+    {"t_ms": 1280000, "text": "I try to check eligibility again before the claim goes out."}
+  ],
+  "queue": [
+    {"id": "Q-21", "bank_id": "PQ-08", "cue": "Follow-up:", "text": "What happens when the fax never arrives?", "target": "C-01.exceptions", "reason": "Exceptions slot still open", "audio_url": "/clips/PQ-08.mp3", "origin": "ai"},
+    {"id": "Q-22", "bank_id": "PQ-09", "cue": "Detail:", "text": "What happens if the authorization number is missing?", "target": "C-01.consequence", "reason": "Consequence slot still open", "audio_url": "/clips/PQ-09.mp3", "origin": "ai"},
+    {"id": "Q-23", "bank_id": null, "cue": "Contradiction:", "text": "Does writing see fax always satisfy the authorization check?", "target": "PA-SCAN", "reason": "Notes workaround conflicts with code", "audio_url": null, "origin": "ai"}
+  ],
+  "played": [
+    {"id": "Q-12", "bank_id": "PQ-07", "text": "Where does the prior auth number go today?", "target": "C-01.current_practice", "reason": "Current practice slot empty", "origin": "ai", "played_at": 871000},
+    {"id": "Q-14", "bank_id": "PQ-02", "text": "Which claims usually need prior authorization?", "target": "C-01.population", "reason": "Confirm the affected population", "origin": "ai", "played_at": 886000},
+    {"id": "Q-15", "bank_id": null, "text": "When do you have to open a claim more than once?", "target": "plan", "reason": "Fallback plan", "origin": "plan", "played_at": 925000},
+    {"id": "Q-19", "bank_id": "PQ-20", "text": "What happens when coverage changes after the visit?", "target": "C-04.trigger", "reason": "RETRO-ELIG rule not yet discussed", "origin": "ai", "played_at": 1260000},
+    {"id": "Q-20", "bank_id": "PQ-21", "text": "What makes a reopened claim difficult?", "target": "C-03.reopen_reasons", "reason": "Reopen reasons slot empty", "origin": "ai", "played_at": 1290000}
+  ],
+  "slot_fills": {
+    "C-01.current_practice": {"value": "Number in notes or see fax", "quote": "If it needs prior auth I put the number in the notes, or sometimes just 'see fax'.", "question_id": "Q-12", "question_origin": "ai", "t_ms": 872000},
+    "C-01.population": {"value": "Imaging claims for Medicare Advantage", "quote": "Pretty much every imaging claim for Medicare Advantage needs one.", "question_id": "Q-14", "question_origin": "ai", "t_ms": 891000},
+    "C-01.frequency": {"value": "Pretty much every imaging claim", "quote": "Pretty much every imaging claim for Medicare Advantage needs one.", "question_id": "Q-14", "question_origin": "ai", "t_ms": 891000},
+    "C-03.current_practice": {"value": "Finish without reopening", "quote": "If I have to open a claim twice, something went wrong.", "question_id": "Q-15", "question_origin": "interviewer", "t_ms": 930000},
+    "C-04.trigger": {"value": "Coverage changes after date of service", "quote": "If coverage changes after the visit, it lands in my queue and I re-run eligibility.", "question_id": "Q-19", "question_origin": "ai", "t_ms": 1265000},
+    "C-04.timing": {"value": "Before the claim goes out", "quote": "I try to check eligibility again before the claim goes out.", "question_id": null, "question_origin": "unprompted", "t_ms": 1280000}
+  },
+  "contradictions": [
+    {"kind": "person_vs_code", "statement_a": "We sometimes just write see fax in the notes.", "statement_b": "PA-SCAN accepts prior-auth claims only when notes contain AUTH.", "rule_id": "PA-SCAN", "after_question_id": "Q-12"}
+  ],
+  "rules_mentioned": ["PA-SCAN", "RETRO-ELIG"],
+  "coverage": 0.6,
+  "yield": 0.75,
+  "slots": ["C-01.population", "C-01.current_practice", "C-01.frequency", "C-01.exceptions", "C-01.consequence", "C-04.trigger", "C-04.current_practice", "C-04.timing", "C-03.current_practice", "C-03.reopen_reasons"],
+  "based_on_t_ms": 1290000
+}
