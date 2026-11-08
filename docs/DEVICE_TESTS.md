@@ -4,7 +4,7 @@ Date: 2026-11-08. Operator: Hrishi (C). Laptop: the demo MacBook, with the Meta 
 
 ## Status
 
-**T2 retry and T4 PASS (operator-reported); C1 incomplete.** Hrishi replied “works” to the explicit-MacBook microphone retry and its voice, tap, and routing checks. The first T2 failure is retained below. T1's exact counts and timing and T3 remain unconfirmed. Do not request `gate/C1-devices` yet.
+**T2 retry, T3, and T4 PASS (operator-reported); C1 incomplete.** Hrishi replied “works” to the explicit-MacBook microphone retry and its voice, tap, and routing checks, then “yes t3 works” to the transcription test. The first T2 failure is retained below. T1's exact counts and timing remain unconfirmed. Do not request `gate/C1-devices` yet.
 
 ## Preparation
 
@@ -19,7 +19,7 @@ Date: 2026-11-08. Operator: Hrishi (C). Laptop: the demo MacBook, with the Meta 
 |---|---|---|
 | T1: taps | WORKING — details pending | Hrishi's response to the T1 instructions: “it works”. Need explicit confirmation of `play`, `next`, `repeat`, respectively, 10/10 each within 0.5 s before marking PASS. |
 | T2: voice with microphone in use | PASS on retry — operator-reported | First default-device probe selected the glasses (FAIL). After restoring routing, Hrishi replied “works” to the explicit-device retry and checks for MacBook input, clear voice through glasses, and functioning taps with capture active. Exact microphone label was not supplied. |
-| T3: transcription at 0.7 m | PENDING | Need 10 role-play lines, with “prior auth”, “notes”, “denial”, and “coverage” transcribed correctly. |
+| T3: transcription at 0.7 m | PASS — operator-reported | Hrishi reported “yes t3 works” in response to the ten-line test at 0.7 m, requiring “prior auth”, “notes”, “denial”, and “coverage” to be recognized correctly. No raw transcript or per-line count was supplied; result is the operator's report. |
 | T4: call-mode guard | PASS — operator-reported | Hrishi replied “works” to the retry instructions, which included checking that Input remained MacBook Microphone and Output remained glasses during active capture. No screenshot or independent agent observation. |
 
 ### T1: taps
@@ -132,4 +132,4 @@ After implementation:
 - Automated launch of native Google Chrome timed out; subsequent app inventory still showed Chrome not running. Hrishi must open Chrome for device tests. This is not a glasses-test result.
 - Before the skeleton commit, `git status` contained only the four C1 files; root `CLAUDE.md`, `AGENTS.md`, and `.env` were ignored and absent from status.
 
-T2 passed on retry and T4 passed according to Hrishi's report; the original T2 failure is retained. T1's exact counts and latency and T3 remain pending. Do not treat the software checks as `gate/C1-devices` approval.
+T2 passed on retry, and T3 and T4 passed according to Hrishi's reports; the original T2 failure is retained. T1's exact counts and latency remain pending. Do not treat the software checks as `gate/C1-devices` approval.
