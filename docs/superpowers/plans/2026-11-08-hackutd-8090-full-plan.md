@@ -1442,52 +1442,241 @@ If the spec gives a `target` for a share template, it's used, clamped to 0–1, 
 {
   "type": "object",
   "additionalProperties": false,
-  "required": ["drafts", "open_loops"],
+  "required": [
+    "drafts",
+    "open_loops"
+  ],
   "properties": {
-    "drafts": {"type": "array", "items": {"type": "object", "additionalProperties": false,
-      "required": ["requirement", "feature", "role", "template", "params", "population", "stated_value", "target",
-                   "metric_id", "metric_description", "quotes", "rule_ids", "criticality", "rationale"],
-      "properties": {
-        "requirement": {"type": "string"},
-        "feature": {"type": "string"},
-        "role": {"enum": ["billing_clerk", "medical_coder", "denial_specialist", "practice_manager"]},
-        "template": {"enum": ["field_fill_rate", "detector_rate", "median_duration", "path_conformance", "followup_within", "rate_per_person_week"]},
-        "params": {"type": "object", "additionalProperties": false,
-          "required": ["event", "flag", "tag", "start_event", "end_event", "task_start", "task_end", "loop_event",
-                       "max_loops", "trigger_event", "followup_event", "within_hours", "where_source_view"],
-          "properties": {
-            "event": {"type": ["string", "null"]}, "flag": {"type": ["string", "null"]}, "tag": {"type": ["string", "null"]},
-            "start_event": {"type": ["string", "null"]}, "end_event": {"type": ["string", "null"]},
-            "task_start": {"type": ["string", "null"]}, "task_end": {"type": ["string", "null"]},
-            "loop_event": {"type": ["string", "null"]}, "max_loops": {"type": ["integer", "null"]},
-            "trigger_event": {"type": ["string", "null"]}, "followup_event": {"type": ["string", "null"]},
-            "within_hours": {"type": ["number", "null"]}, "where_source_view": {"type": ["string", "null"]}}},
-        "population": {"type": "object", "additionalProperties": false,
-          "required": ["description", "filter_key", "filter_value"],
-          "properties": {"description": {"type": "string"}, "filter_key": {"type": ["string", "null"]},
-                         "filter_value": {"type": ["string", "boolean", "null"]}}},
-        "stated_value": {"type": ["number", "null"]},
-        "target": {"type": ["number", "null"]},
-        "metric_id": {"type": "string"},
-        "metric_description": {"type": "string"},
-        "quotes": {"type": "array", "items": {"type": "string"}},
-        "rule_ids": {"type": "array", "items": {"type": "string"}},
-        "criticality": {"enum": ["high", "medium", "low"]},
-        "rationale": {"type": "string"}}}},
-    "open_loops": {"type": "array", "items": {"type": "object", "additionalProperties": false,
-      "required": ["requirement", "feature", "role", "quotes", "why_unmeasurable", "suggested_event_name", "suggested_event_props"],
-      "properties": {
-        "requirement": {"type": "string"},
-        "feature": {"type": "string"},
-        "role": {"enum": ["billing_clerk", "medical_coder", "denial_specialist", "practice_manager"]},
-        "quotes": {"type": "array", "items": {"type": "string"}},
-        "why_unmeasurable": {"type": "string"},
-        "suggested_event_name": {"type": "string"},
-        "suggested_event_props": {"type": "array", "items": {"type": "string"}}}}}
+    "drafts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "requirement",
+          "feature",
+          "role",
+          "template",
+          "params",
+          "population",
+          "stated_value",
+          "target",
+          "metric_id",
+          "metric_description",
+          "quotes",
+          "rule_ids",
+          "criticality",
+          "rationale"
+        ],
+        "properties": {
+          "requirement": {
+            "type": "string"
+          },
+          "feature": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "billing_clerk",
+              "medical_coder",
+              "denial_specialist",
+              "practice_manager"
+            ]
+          },
+          "template": {
+            "enum": [
+              "field_fill_rate",
+              "detector_rate",
+              "median_duration",
+              "path_conformance",
+              "followup_within",
+              "rate_per_person_week"
+            ]
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "event",
+              "flag",
+              "tag",
+              "start_event",
+              "end_event",
+              "task_start",
+              "task_end",
+              "loop_event",
+              "max_loops",
+              "trigger_event",
+              "followup_event",
+              "within_hours",
+              "where_source_view"
+            ],
+            "properties": {
+              "event": {
+                "type": "string"
+              },
+              "flag": {
+                "type": "string"
+              },
+              "tag": {
+                "type": "string"
+              },
+              "start_event": {
+                "type": "string"
+              },
+              "end_event": {
+                "type": "string"
+              },
+              "task_start": {
+                "type": "string"
+              },
+              "task_end": {
+                "type": "string"
+              },
+              "loop_event": {
+                "type": "string"
+              },
+              "max_loops": {
+                "type": "integer"
+              },
+              "trigger_event": {
+                "type": "string"
+              },
+              "followup_event": {
+                "type": "string"
+              },
+              "within_hours": {
+                "type": "number"
+              },
+              "where_source_view": {
+                "type": "string"
+              }
+            }
+          },
+          "population": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "description",
+              "filter_key",
+              "filter_value"
+            ],
+            "properties": {
+              "description": {
+                "type": "string"
+              },
+              "filter_key": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "filter_value": {
+                "type": [
+                  "string",
+                  "boolean",
+                  "null"
+                ]
+              }
+            }
+          },
+          "stated_value": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "target": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "metric_id": {
+            "type": "string"
+          },
+          "metric_description": {
+            "type": "string"
+          },
+          "quotes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rule_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "criticality": {
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "rationale": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "open_loops": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "requirement",
+          "feature",
+          "role",
+          "quotes",
+          "why_unmeasurable",
+          "suggested_event_name",
+          "suggested_event_props"
+        ],
+        "properties": {
+          "requirement": {
+            "type": "string"
+          },
+          "feature": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "billing_clerk",
+              "medical_coder",
+              "denial_specialist",
+              "practice_manager"
+            ]
+          },
+          "quotes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "why_unmeasurable": {
+            "type": "string"
+          },
+          "suggested_event_name": {
+            "type": "string"
+          },
+          "suggested_event_props": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
   }
 }
 ```
-It uses the same nullable convention as plan 10.3, which the engine already uses in production. If the API ever rejects the type arrays, switch them to `anyOf` exactly as 10.3 says.
+The live API rejected the original 17-union D5 schema. Template params therefore use plain types with unused markers: empty string for strings, -1 for max_loops, and 0 for within_hours. Code normalizes these markers to None before the 14 checks. Only population.filter_key, population.filter_value, stated_value and target remain nullable (four union-typed fields). Test stubs may supply normalized None values. This changes D5 only; the interview schemas in section 10.3 are unchanged.
 
 #### System prompt (built per run; the bracketed parts are filled in by code)
 
@@ -1511,7 +1700,7 @@ Pick exactly one template per draft:
 - followup_within: share of <trigger_event> followed by <followup_event> on the same claim within <within_hours>.
 - rate_per_person_week: count of <event> (optionally only where source_view = <where_source_view>) per person
   per week. "Does a workaround happen, and how often?"
-Set unused params to null.
+Set unused string params to "", unused max_loops to -1, and unused within_hours to 0. Code normalizes them to null before checking.
 
 stated_value = the number the interviewee gave for how things work TODAY, converted to the template's unit
 (share 0-1, seconds, or count per person per week). Null if they gave no number.
@@ -1533,16 +1722,42 @@ RULES IN THE LEGACY CODE:
 ROLES: billing_clerk, medical_coder, denial_specialist, practice_manager
 
 Example draft (shape only):
-{"requirement": "Weekly claim numbers reach the practice manager without clerks exporting spreadsheets.",
- "feature": "Reporting", "role": "billing_clerk", "template": "rate_per_person_week",
- "params": {"event": "export_csv", "where_source_view": "claims", "flag": null, "tag": null, "start_event": null,
-            "end_event": null, "task_start": null, "task_end": null, "loop_event": null, "max_loops": null,
-            "trigger_event": null, "followup_event": null, "within_hours": null},
- "population": {"description": "Billing clerks' working weeks", "filter_key": null, "filter_value": null},
- "stated_value": 1.0, "target": null, "metric_id": "claims_export_rate",
- "metric_description": "Claims-list exports to CSV per clerk per week",
- "quotes": ["<verbatim line from the transcript>"], "rule_ids": [], "criticality": "medium",
- "rationale": "A weekly manual export is a workaround for missing reporting."}
+{
+  "requirement": "Weekly claim numbers reach the practice manager without clerks exporting spreadsheets.",
+  "feature": "Reporting",
+  "role": "billing_clerk",
+  "template": "rate_per_person_week",
+  "params": {
+    "event": "export_csv",
+    "where_source_view": "claims",
+    "flag": "",
+    "tag": "",
+    "start_event": "",
+    "end_event": "",
+    "task_start": "",
+    "task_end": "",
+    "loop_event": "",
+    "max_loops": -1,
+    "trigger_event": "",
+    "followup_event": "",
+    "within_hours": 0
+  },
+  "population": {
+    "description": "Billing clerks' working weeks",
+    "filter_key": null,
+    "filter_value": null
+  },
+  "stated_value": 1.0,
+  "target": null,
+  "metric_id": "claims_export_rate",
+  "metric_description": "Claims-list exports to CSV per clerk per week",
+  "quotes": [
+    "<verbatim line from the transcript>"
+  ],
+  "rule_ids": [],
+  "criticality": "medium",
+  "rationale": "A weekly manual export is a workaround for missing reporting."
+}
 ```
 
 **User message:** the transcript in exactly the engine's format, `<transcript>` + one `[mm:ss] text` line per utterance, with `[Q-N played at mm:ss]` lines merged in time order + `</transcript>`, followed by `Interviewee: <label> (<role>)`, then `Slot fills: <contract.slot = value, ...>`, then `Contradictions: <statement_a / statement_b, ...>`.
@@ -1571,7 +1786,7 @@ async def _anthropic_call(system: str, user: str) -> dict:
         raise DraftTruncated()
     return json.loads(next(b.text for b in resp.content if b.type == "text"))
 ```
-Thinking is left at Haiku 5.5's default (adaptive, on), because drafting is a judgement task that runs once and isn't latency-critical. One run costs about one cent.
+For this offline drafting task only, thinking is left at Haiku 5.5's default (adaptive, on), because drafting is a judgement task that runs once and isn't latency-critical. One run costs about one cent.
 
 #### Checks on every draft spec, in this order (the first failure rejects it; the reason text is fixed)
 
@@ -1602,7 +1817,7 @@ Open-loop specs go through checks 1, 9 and 10 only.
 | `requirement.statement`, `requirement.feature` | From the spec |
 | `role` | From the spec (checked) |
 | `signal` | From the template table, never from the model |
-| `population` | `{"description": spec.description, "filter": {filter_key: filter_value}}`, or `{}` when there's no key |
+| `population` | `{"description": spec.description, "filter": {filter_key: filter_value}}`, with an empty `filter` when there is no key |
 | `expectations` | One item: `metric_id`, `description = metric_description`, `template`, the template's params only (`rate_per_person_week` gets `where` built from `where_source_view`), comparator / target / tolerance / unit from the template table |
 | `window` | Template table defaults |
 | `baseline` | `b = legacy_baseline(...)[metric_id]`. `source`: `"both"` if `b` and `stated_value` are both present, `"legacy_logs"` if only `b`, otherwise `"interview"`. `values`: `{metric_id: b}` if `b` isn't None, else `{}`. `note`: `"Legacy logs: <b>; interviewee said: <stated_value>"` |
@@ -1655,6 +1870,15 @@ Open-loop specs go through checks 1, 9 and 10 only.
 | POST | `/api/drafts/{draft_id}/reject` | `X-Admin-Token` | Body `{"reason": "..."}` (optional) → the updated record |
 
 `_contracts()` in `routes_data.py` now returns `load_all_contracts()`, so `/api/drift`, `/api/findings` and the payload route include approved drafts automatically.
+
+#### Cross-owner integration required before gate/D5-drafts
+
+- **E (Prakrit), in `server/routes_engine.py`:** `GET /api/contracts` must start from `load_all_contracts()` and merge live evidence as in E4, preserving the existing array response. Approved contracts must be returned, not only the five seed contracts. W5 can join `final_ids.contract_id` from approved draft records for its provenance label; do not add fields that violate the contract schema.
+- **E, in `server/settings.py`:** validate `contracts_watched` against catalog plus approved IDs at request time. A saved watch list is authoritative, including an empty list; approving a contract must not bypass later client choices. Keep drift, notes matching and Software Factory sending off by default.
+- **D (AK):** on contract approval, persist the new ID in `contracts_watched` through `save_settings` after adding it to approved storage, without changing `drift_enabled`. Drift, findings and payload routes then use the saved list. Do not unconditionally append every approved ID in `_settings()` on each request, because that makes an approved contract impossible to unwatch.
+- **C (Hrishi):** the settings panel obtains available contract IDs from `GET /api/contracts` so approved IDs can be selected and deselected.
+- **Integration tests:** approve C-06 and assert it is in `GET /api/contracts`; enable drift and assert C-06 holds; save an empty watched list and assert drift returns no contracts; add C-06 back and assert it returns. Keep drift off and assert no monitoring occurs. D5 test storage helpers must isolate `SETTINGS_PATH` as well as approved storage, drafts and audit paths.
+- **Covered requirements:** the INT-09 prior-auth line must not become another contract by changing `auth_number` to `see_fax`. Keep a regression check for this known live-output case in addition to the exact-params duplicate check.
 
 #### Planted uncovered requirements (so the demo reliably produces one contract and one open loop)
 
@@ -1741,6 +1965,7 @@ def tmp_storage(tmp_path, monkeypatch):
     monkeypatch.setattr(cd, "DRAFTS_DIR", tmp_path / "drafts")
     monkeypatch.setattr(ct, "APPROVED_PATH", tmp_path / "approved.json")
     monkeypatch.setattr(st, "AUDIT_PATH", str(tmp_path / "audit.jsonl"))
+    monkeypatch.setattr(st, "SETTINGS_PATH", str(tmp_path / "settings.json"))
 
 import pytest
 
@@ -1865,8 +2090,8 @@ def test_claims_exports_do_not_change_existing_c01_rates():
 - [ ] **Step 7: Live check with the real model.**
     - `cp tests/fixtures/state_draft.json data/state/INT-09.json`
     - start the server, then run `curl -s -X POST localhost:8000/api/drafts -H 'content-type: application/json' -d '{"interview_id":"INT-09"}' | python -m json.tool`
-    - **Expected:** at least one `contract` item for the Friday export, with `validate_contract` clean, `baseline_value` near 1.0 and `confidence.did` true. Also at least one `open_loop` item for the payer calls. The C-01 prior-auth line must **not** be drafted again, because C-01 covers it. Any dropped specs are listed in `rejected` with reasons.
-    - Then approve the contract with the admin token and check `curl -s localhost:8000/api/drift` (drift switched on) now lists `C-06` holding.
+    - **Expected:** at least one `contract` item for the Friday export, with `validate_contract` clean, `baseline_value` near 1.0 and `confidence.did` true. Also at least one `open_loop` item for the payer calls. The C-01 prior-auth line must **not** be drafted again, including as a see-fax detector, because C-01 covers it. Any dropped specs are listed in `rejected` with reasons.
+    - Then approve the contract with the admin token and check `GET /api/contracts` includes C-06 and `GET /api/drift` (drift switched on) lists C-06 holding. Save an empty `contracts_watched` list and confirm drift returns no contracts; restore C-06 to the list and confirm it returns. The owner integration above must land before this gate opens.
     - Delete `data/state/INT-09.json` afterwards.
 - [ ] **Step 8:** Commit (`feat(data): draft behaviour contracts from interviews`), merge `origin/main`, `pytest -q`, push `data`, open a PR `[gate D5-drafts] Draft new behaviour contracts from interviews`.
 
@@ -1883,6 +2108,10 @@ def test_claims_exports_do_not_change_existing_c01_rates():
 | Drafting takes 10–30 s | It runs on a button press, not in the live question loop. The board shows a skeleton while it runs |
 | Two people press the button at once | A per-interview lock returns 409 |
 
+
+---
+
+### Task W1: Board shell, tokens, Terms and Privacy, 0:30?1:30
 
 **Files:**
 - Create: `server/static/board.html`, `board.css`, `board.js`, `terms.html`, `privacy.html`
@@ -1998,6 +2227,8 @@ def test_event_post_and_recent(tmp_path, monkeypatch):
 - [ ] **Step 4:** Commit `feat(web): drift view, finding detail, software factory drawer`.
 
 ### Task W5: Contract drafts on the board (Keshav, about 45 min, after W4)
+
+For the planted Friday-export rehearsal, use INT-02 (Billing clerk 1). INT-01 is Billing clerk 2; its illustrative mock data is not the U-1 role-play script.
 
 **Files:**
 - Modify: `server/static/board.html`, `board.js`, `board.css`

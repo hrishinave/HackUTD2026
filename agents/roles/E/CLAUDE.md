@@ -76,6 +76,10 @@ If it prints `NOT_READY`, stop and tell your human: `[blocked] E waiting on gate
 - **E3, the `state` endpoint.** `GET /api/interviews/{id}/state` is what W3 builds against. Its keys are `transcript`, `queue`, `played`, `slot_fills`, `contradictions`, `rules_mentioned`, `coverage`, `yield`. Don't rename them.
 - **E4.** Voice the bank once with `prevoice_bank` before the first rehearsal (the ElevenLabs free tier has a monthly character limit). The `/clips` mount is the only change you make to `app.py` after E1.
 
+## D5 integration handoff
+
+Before gate/D5-drafts, coordinate with AK: GET /api/contracts must read load_all_contracts() while preserving its array shape and E4 evidence merge. Settings validation must accept approved IDs dynamically and respect explicit empty watch lists. Add tests for approved C-06 visibility and watch/unwatch. These are your files; D does not edit routes_engine.py or settings.py. See the plan D5 cross-owner integration section.
+
 ## Interfaces you produce (frozen; plan section 10)
 
 - `server.settings`: `DEFAULTS`, `SETTINGS_PATH`, `AUDIT_PATH`, `LIVE_EVENTS_PATH`, `load_settings()`, `save_settings(changes, actor)`, `prune_old_events()`.

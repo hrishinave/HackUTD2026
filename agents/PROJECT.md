@@ -19,7 +19,7 @@ An 8090 interviewer wears speaker-only Meta glasses, paired straight to a MacBoo
 | Hardware | Speaker-only Meta glasses paired to the MacBook (confirmed). No phone. macOS Sound: Input = MacBook Microphone, Output = glasses |
 | Interviewer client | One Chrome page at `http://localhost:8000/interviewer`: Web Speech API, Media Session API (glasses taps), HTML audio |
 | Taps | Single tap = play top question, double tap = next question, triple tap = repeat last |
-| LLM | Claude Haiku 5.5 only (`claude-haiku-5-5`), thinking disabled, effort low, structured JSON output, cached brief |
+| LLM | Claude Haiku 5.5 only (`claude-haiku-5-5`), thinking disabled and effort low for interviews; D5 offline drafting uses adaptive thinking and effort medium; structured JSON output, cached brief |
 | Engine shape | Two parallel calls per trigger: a fast question call (mostly returns prepared question IDs) and a bookkeeping call (slot fills, contradictions); 1.0 s debounce |
 | Voice | Prepared questions are pre-voiced with ElevenLabs; new questions are voiced live; the browser voice is the fallback |
 | Server | Python 3.12 + FastAPI on `127.0.0.1:8000`, plain files for data, no database |
