@@ -880,7 +880,7 @@
   }
 
   async function refreshDecisions() {
-    const [records, contracts, interview, lifecycle] = await Promise.all([readDrafts(AbortSignal.timeout(10000)), requestData(views.contracts, AbortSignal.timeout(10000)), requestData(interviewConfig(), AbortSignal.timeout(6000)).catch(() => null), readLifecycle(AbortSignal.timeout(6000))]);
+    const [records, contracts, interview, lifecycle] = await Promise.all([readDrafts(AbortSignal.timeout(10000)), requestData(views.contracts, AbortSignal.timeout(10000)), (selectedInterview || useMocks ? requestData(interviewConfig(), AbortSignal.timeout(6000)).catch(() => null) : Promise.resolve(null)), readLifecycle(AbortSignal.timeout(6000))]);
     draftRecords = records;
     renderContracts({ contracts, interview, lifecycle });
     renderDrafts();
@@ -1378,7 +1378,7 @@
       if (route.name === "contracts") {
         try { draftRecords = await readDrafts(requestController.signal); }
         catch { byId("draft-message").textContent = "Draft records unavailable. Earlier contract evidence is still shown."; }
-        const interview = await requestData(interviewConfig(), requestController.signal).catch(() => null);
+        const interview = selectedInterview || useMocks ? await requestData(interviewConfig(), requestController.signal).catch(() => null) : null;
         const lifecycle = await readLifecycle(requestController.signal);
         data = { contracts: data, interview, drafts: draftRecords, lifecycle };
       }
