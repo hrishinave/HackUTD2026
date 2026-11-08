@@ -7,7 +7,7 @@
     settings: { title: "Client settings" }
   };
   const useMocks = new URLSearchParams(window.location.search).get("mock") === "1";
-  let selectedInterview = "INT-01";
+  let selectedInterview = "";
   let selectedPerson = "billing_clerk_2";
   let selectedCompany = "medicare_billing_demo";
   const byId = (id) => document.getElementById(id);
@@ -674,6 +674,15 @@
   }
 
   async function loadView(route, config, currentGeneration) {
+    if (route.name === "interview" && !selectedInterview) {
+      const message = document.querySelector('[data-message="interview"]');
+      const skeletons = document.querySelector("#interview-view .loading-grid");
+      if (skeletons) skeletons.hidden = true;
+      byId("interview-content").hidden = true;
+      status.textContent = "Ready for a new interview";
+      if (message) message.textContent = "Choose a previous interview or enter a person's name and position to start one.";
+      return;
+    }
     if (!config.endpoint) { status.textContent = "Local client settings"; return; }
     const message = document.querySelector('[data-message="' + route.name + '"]');
     const skeletons = document.querySelector("#" + route.name + "-view .loading-grid");
