@@ -1,0 +1,17 @@
+{
+  "interview_id": "INT-01",
+  "interviewee": "billing_clerk_2",
+  "label": "Billing clerk 2",
+  "transcript": [],
+  "queue": [],
+  "played": [],
+  "slot_fills": {},
+  "contradictions": [
+    {"kind": "person_vs_code", "statement_a": "Claims without modifier 25 always get rejected",
+     "statement_b": "The legacy code accepts claims without modifier 25", "rule_id": "MOD-25", "after_question_id": "Q-7"}
+  ],
+  "rules_mentioned": ["PA-SCAN", "RETRO-ELIG", "TF-365"],
+  "coverage": 0.0,
+  "slots": [],
+  "yield": 0.0
+}
