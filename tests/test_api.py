@@ -1,7 +1,19 @@
+import base64
+import json
 import time
 
+import pytest
 from fastapi.testclient import TestClient
+from server import routes_engine, tts
 from server.app import app
+
+
+@pytest.fixture(autouse=True)
+def _isolated(tmp_path, monkeypatch):
+    # never call ElevenLabs from tests; keep state and live clips out of data/
+    monkeypatch.setattr(tts, "render", lambda text: b"MP3:" + text.encode())
+    monkeypatch.setattr(routes_engine, "STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setattr(routes_engine, "LIVE_CLIPS_DIR", str(tmp_path / "live"))
 
 
 def _receive_until(ws, pred, limit=10):
@@ -56,3 +68,26 @@ def test_missing_page_is_clean_404():
     c = TestClient(app)
     r = c.get("/terms")
     assert r.status_code in (200, 404)
+
+
+def test_new_questions_get_audio_and_state_is_saved_and_restored(monkeypatch, tmp_path):
+    monkeypatch.setenv("LLM_PROVIDER", "fake")
+    c = TestClient(app)
+    c.post("/api/interviews/T3/start", json={"interviewee": "billing_clerk_2"})
+    with c.websocket_connect("/ws/client/T3") as ws:
+        q = _receive_until(ws, lambda m: m["type"] == "queue")["questions"][0]
+        audio = _receive_until(ws, lambda m: m["type"] == "audio")
+        assert audio["question_id"] == q["id"]
+        assert base64.b64decode(audio["mp3_b64"]) == b"MP3:Detail: " + q["text"].encode()
+        ws.send_json({"type": "utterance", "text": "I do imaging claims", "final": True, "t_ms": 3000})
+        _receive_until(ws, lambda m: m["type"] == "queue" and m["based_on_t_ms"] == 3000)
+        ws.send_json({"type": "played", "question_id": q["id"], "t_ms": 4000})
+        _receive_until(ws, lambda m: m["type"] == "ack")
+    saved = json.loads((tmp_path / "state" / "T3.json").read_text())
+    assert saved["transcript"][0]["text"] == "I do imaging claims" and saved["played"][0]["id"] == q["id"]
+    before = c.get("/api/interviews/T3/state").json()
+    routes_engine.sessions.pop("T3")
+    routes_engine._startup_load_sessions()
+    after = c.get("/api/interviews/T3/state").json()
+    assert after["transcript"] == before["transcript"] and after["played"] == before["played"]
+    assert after["queue"] == before["queue"]

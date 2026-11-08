@@ -113,3 +113,15 @@ def test_same_rule_contradiction_recorded_once():
     c2 = {"kind": "person_vs_code", "statement_a": "I put it in the notes", "statement_b": "PA-SCAN reads notes", "rule_id": "PA-SCAN"}
     s.apply_bookkeeping(BookResult([], [c1], [])); s.apply_bookkeeping(BookResult([], [c2], []))
     assert len(s.state()["contradictions"]) == 1
+
+def test_session_round_trips_through_dict():
+    s = make(plan=["First plan question?", "Second plan question?"])
+    s.add_utterance("I put it in the notes", 61_000)
+    q = s.apply_questions([new("Why the notes?", "C-01.current_practice")], 62_000, 61_000)
+    s.mark_played(q[0]["id"], 62_500)
+    s.apply_bookkeeping(BookResult([{"contract_id": "C-01", "slot": "frequency", "value": "most", "quote": "most", "answered_question_id": q[0]["id"]}],
+                                   [{"kind": "person_vs_code", "statement_a": "a", "statement_b": "b", "rule_id": "PA-SCAN"}], ["PA-SCAN"]))
+    s.begin_call()
+    r = InterviewSession.from_dict(s.to_dict(), brief="BRIEF", bank=BANK)
+    assert r.state() == s.state() and r.begin_call() == s.begin_call()
+    assert r.apply_questions([new("What next?", "C-01.exceptions")], 70_000, 61_000)[0]["id"] == "Q-2"

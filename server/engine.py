@@ -153,6 +153,27 @@ class InterviewSession:
                 self.contradictions.append({**c, "after_question_id": last_played})
         self.rules_mentioned.update(result.rules_mentioned)
 
+    # --- persistence --------------------------------------------------------------
+
+    _FIELDS = ("interviewee", "label", "plan", "relevant_contracts", "slot_ids", "transcript", "last_utterance_t",
+               "last_called_t", "q_counter", "plan_index", "questions", "queue", "based_on_t_ms", "played",
+               "slot_fills", "contradictions")
+
+    def to_dict(self) -> dict:
+        d = {k: getattr(self, k) for k in self._FIELDS}
+        d["interview_id"] = self.interview_id
+        d["rules_mentioned"] = sorted(self.rules_mentioned)
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict, brief: str, bank: dict) -> "InterviewSession":
+        s = cls(d["interview_id"], d["interviewee"], brief=brief, bank=bank, plan=d.get("plan"))
+        for k in cls._FIELDS:
+            if k in d:
+                setattr(s, k, d[k])
+        s.rules_mentioned = set(d.get("rules_mentioned", []))
+        return s
+
     # --- views --------------------------------------------------------------------
 
     def queue_message(self) -> dict:

@@ -1,5 +1,8 @@
 """Engine routes: client WebSocket, interviews, contracts, settings, pages (except /claim)."""
 import asyncio
+import base64
+import glob
+import hashlib
 import json
 import logging
 import os
@@ -9,7 +12,7 @@ from collections import deque
 from fastapi import APIRouter, Body, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
-from server import kb, llm
+from server import kb, llm, tts
 from server import settings as st
 from server.engine import InterviewSession
 from server.kb import build_brief, load_bank
@@ -34,7 +37,21 @@ def _startup_prune() -> None:
         log.exception("prune_old_events failed")
 
 
-router = APIRouter(on_startup=[_startup_prune])
+def _startup_load_sessions() -> None:
+    for path in sorted(glob.glob(os.path.join(STATE_DIR, "*.json"))):
+        try:
+            with open(path) as f:
+                d = json.load(f)
+            session = InterviewSession.from_dict(d, brief=build_brief(d["interview_id"], d["interviewee"]), bank=load_bank())
+            runner = Runner(session)
+            runner.total_calls = d.get("_calls_total", 0)
+            sessions[session.interview_id] = runner
+            log.info("restored %s (%d utterances, %d played)", session.interview_id, len(session.transcript), len(session.played))
+        except Exception:
+            log.exception("could not restore %s", path)
+
+
+router = APIRouter(on_startup=[_startup_prune, _startup_load_sessions])
 
 
 @router.get("/api/settings")
@@ -54,6 +71,8 @@ def post_settings(body: dict = Body(...), x_admin_token: str | None = Header(def
 
 STATIC_DIR = "server/static"
 CONTRACTS_PATH = "contracts/medicare_contracts.json"
+STATE_DIR = "data/state"
+LIVE_CLIPS_DIR = "data/clips/live"
 
 CALLS_PER_MINUTE = 30
 CALLS_PER_INTERVIEW = 800
@@ -74,6 +93,8 @@ class Runner:
         self.call_times: deque[float] = deque()
         self.total_calls = 0
         self.skipped_book = 0
+        self.audio: dict[str, str] = {}      # question_id -> mp3 base64, for questions without a bank clip
+        self.voicing: set[str] = set()
         # interview clock: t_ms of the latest utterance and the monotonic time it arrived
         self.clock_t_ms = 0
         self.clock_mono = time.monotonic()
@@ -111,7 +132,48 @@ class Runner:
                 self.sockets.discard(ws)
 
     async def send_queue(self) -> None:
+        self.save()
         await self.broadcast(self.session.queue_message())
+        for q in self.session.queue:
+            if q.get("audio_url") is None and q["id"] not in self.audio and q["id"] not in self.voicing:
+                self.voicing.add(q["id"])
+                asyncio.create_task(self._voice(q))
+
+    async def _voice(self, q: dict) -> None:
+        """ElevenLabs render for a question with no bank clip; cached on disk by text so rehearsals don't re-spend."""
+        try:
+            text = f"{q['cue']} {q['text']}"
+            path = os.path.join(LIVE_CLIPS_DIR, hashlib.sha1(text.encode()).hexdigest()[:16] + ".mp3")
+            if os.path.exists(path):
+                with open(path, "rb") as f:
+                    mp3 = f.read()
+            else:
+                mp3 = await asyncio.to_thread(tts.render, text)
+                if mp3:
+                    os.makedirs(LIVE_CLIPS_DIR, exist_ok=True)
+                    with open(path, "wb") as f:
+                        f.write(mp3)
+            if mp3:
+                self.audio[q["id"]] = base64.b64encode(mp3).decode()
+                await self.broadcast(self.audio_message(q["id"]))
+        except Exception as e:  # the page falls back to the browser voice
+            log.warning("%s voicing %s failed (%s)", self.session.interview_id, q.get("id"), e)
+        finally:
+            self.voicing.discard(q["id"])
+
+    def audio_message(self, question_id: str) -> dict:
+        return {"type": "audio", "question_id": question_id, "mp3_b64": self.audio[question_id]}
+
+    def save(self) -> None:
+        try:
+            os.makedirs(STATE_DIR, exist_ok=True)
+            path = os.path.join(STATE_DIR, f"{self.session.interview_id}.json")
+            tmp = path + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump({**self.session.to_dict(), "_calls_total": self.total_calls}, f)
+            os.replace(tmp, path)
+        except Exception:
+            log.exception("%s could not save state", self.session.interview_id)
 
     def ensure_loop(self) -> None:
         if self.loop_task is None or self.loop_task.done():
@@ -158,6 +220,8 @@ class Runner:
         after = self.session.queue_message()
         if items or after != before:
             await self.send_queue()
+        else:
+            self.save()
 
     async def _bookkeeping(self, user_input: str) -> None:
         try:
@@ -168,12 +232,15 @@ class Runner:
             log.warning("%s bookkeeping failed (%s: %s)", self.session.interview_id, type(e).__name__, e)
             return
         self.session.apply_bookkeeping(result)
+        self.save()
 
     async def refill_if_empty(self) -> None:
         if not self.session.queue:
             self.session.apply_questions([], self.now_ms(), self.session.based_on_t_ms)
             if self.session.queue:
                 await self.send_queue()
+                return
+        self.save()
 
     def stop(self) -> None:
         for t in (self.loop_task, self.q_task, self.book_task):
@@ -259,6 +326,9 @@ async def client_ws(ws: WebSocket, interview_id: str):
     try:
         if runner.session.queue:
             await ws.send_json(runner.session.queue_message())
+            for q in runner.session.queue:
+                if q["id"] in runner.audio:
+                    await ws.send_json(runner.audio_message(q["id"]))
         while True:
             msg = await ws.receive_json()
             runner = sessions.get(interview_id, runner)  # a /start may have replaced it
