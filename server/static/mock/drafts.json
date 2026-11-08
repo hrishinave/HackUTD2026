@@ -1,0 +1,149 @@
+{
+  "interview_id": "INT-01",
+  "items": [
+    {
+      "status": "draft",
+      "contract": {
+        "id": "C-99",
+        "requirement": {
+          "id": "R-99",
+          "statement": "Weekly claim numbers reach the practice manager without clerks exporting spreadsheets.",
+          "feature": "Reporting"
+        },
+        "role": "billing_clerk",
+        "signal": "absence",
+        "population": {
+          "description": "Billing clerks' working weeks",
+          "filter": {}
+        },
+        "expectations": [
+          {
+            "metric_id": "claims_export_rate",
+            "description": "Claims-list exports to CSV per clerk per week",
+            "template": "rate_per_person_week",
+            "params": {
+              "event": "export_csv",
+              "where": {
+                "source_view": "claims"
+              }
+            },
+            "comparator": "<=",
+            "target": 0.5,
+            "unit": "per_person_week",
+            "tolerance": 0.5
+          }
+        ],
+        "window": {
+          "period": "week",
+          "min_tasks": 5,
+          "min_people": 5,
+          "learning_period_weeks": 2,
+          "consecutive_breaches_for_drift": 2
+        },
+        "baseline": {
+          "source": "both",
+          "values": {
+            "claims_export_rate": 0.98
+          },
+          "note": "Legacy logs: 0.98; interviewee said: 1.0"
+        },
+        "events_required": [
+          "export_csv"
+        ],
+        "related_detectors": [],
+        "evidence": [
+          {
+            "quote": "Every Friday I export the claims list to Excel for the practice manager.",
+            "speaker": "Billing clerk 2",
+            "interview_id": "INT-01",
+            "timestamp": "01:10",
+            "question_id": "Q-12",
+            "question_origin": "ai"
+          }
+        ],
+        "code_refs": [],
+        "confidence": {
+          "level": "medium",
+          "said": true,
+          "did": true,
+          "code": false,
+          "note": "Verified quote agrees with legacy logs."
+        },
+        "criticality": "medium",
+        "status": "learning"
+      },
+      "open_loop": null,
+      "stated_value": 1.0,
+      "baseline_value": 0.98,
+      "target_source": "template_default",
+      "contradiction": null,
+      "checks": [
+        "catalog ok",
+        "quote verified",
+        "not a duplicate",
+        "schema ok"
+      ],
+      "rationale": "The weekly manual export is a workaround.",
+      "final_ids": null,
+      "decided_by": null,
+      "decided_at": null,
+      "reject_reason": null,
+      "draft_id": "DR-INT-01-1",
+      "kind": "contract"
+    },
+    {
+      "status": "draft",
+      "contract": null,
+      "open_loop": {
+        "requirement": {
+          "id": "R-99",
+          "statement": "Stuck claims are chased with the payer and tracked.",
+          "feature": "Claim follow-up"
+        },
+        "role": "billing_clerk",
+        "why_unmeasurable": "No event records payer calls.",
+        "evidence": [
+          {
+            "quote": "If a claim sits pending more than 30 days I phone the payer and write it on a sticky note.",
+            "speaker": "Billing clerk 2",
+            "interview_id": "INT-01",
+            "timestamp": "05:05",
+            "question_id": "Q-14",
+            "question_origin": "ai"
+          }
+        ],
+        "suggested_event": {
+          "name": "payer_call_logged",
+          "props": [
+            "claim_id_hash",
+            "days_pending"
+          ]
+        },
+        "suggested_human_check": "Instrument payer_call_logged, or check in post-launch user conversations."
+      },
+      "stated_value": null,
+      "baseline_value": null,
+      "target_source": null,
+      "contradiction": null,
+      "checks": [
+        "role ok",
+        "quote verified"
+      ],
+      "rationale": "Payer calls leave no measured event.",
+      "final_ids": null,
+      "decided_by": null,
+      "decided_at": null,
+      "reject_reason": null,
+      "draft_id": "DR-INT-01-2",
+      "kind": "open_loop"
+    }
+  ],
+  "rejected": [
+    {
+      "requirement": "All billing work completes without exceptions.",
+      "reasons": [
+        "quote not found in transcript"
+      ]
+    }
+  ]
+}
