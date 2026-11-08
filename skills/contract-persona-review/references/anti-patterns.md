@@ -1,9 +1,13 @@
-# Anti-patterns and corrections
+# Behaviour contract anti-patterns
 
-- **Numbers invented in the interview.** A reviewer guesses 100 claims/day or treats a proposed 95% target as something the clerk said. Preserve the exact answer, mark the quantity unknown, and request a log fact or a follow-up. Separate measured baseline, user estimate and proposed target; label all demo values.
-- **No tolerance.** A target alone turns ordinary variation into a failure. Record comparator, unit, tolerance, eligible population and weekly window; skip insufficient task/people windows and respect learning and consecutive-breach rules. Do not invent a missing tolerance to complete the schema.
-- **Free-text events.** Sending notes, patient names, authorization numbers or transcript text as usage telemetry violates the catalog. Use named events and booleans/IDs/detector tags only; notes matching requires the client's opt-in and runs locally. Quotes belong in attributed interview evidence, not event props.
-- **Finding without a contract ID or quote.** “The screen is confusing” cannot establish a broken promise. Cite C-NN/R-NN, the source quote with its real speaker and lineage, the concrete path and relevant expectation. Label subjective preferences separately; do not invent attribution.
-- **One spike becomes sustained drift.** Respect minimum tasks, at least five people, learning weeks, consecutive breaches and tolerance. A static UI review predicts a risk; only observed events can establish post-launch drift.
-- **Unmeasurable need becomes a fake metric.** Payer phone calls and trust may have no event footprint. Record an open loop and the human check or proposed event needed, rather than fabricating a monitored contract.
-- **Triage duplicates or unsupported severity.** Reuse the Theme keyed by Pact-Contract; preserve the Requirement and Finding links. Cost marked unknown is not zero, and demo cost is not actual financial loss. Never invent an external ticket or claim a simulated filing reached a live endpoint.
+Each of these makes a contract unverifiable or a finding untrustworthy. Reject or fix them.
+
+1. **Numbers invented in the interview.** A target the interviewee guessed ("maybe four minutes") is evidence, not a target. Set the target from legacy log facts or the stated need, and record the quote as evidence. If the logs disagree with the quote, that is a say-vs-do gap: note it in `confidence`, do not average them.
+2. **No tolerance.** Every expectation needs `tolerance`. Without it, one noisy week reads as a broken promise. Breach is beyond the tolerance; broken is beyond twice the tolerance.
+3. **Free-text events.** Signals must come from typed events with flags and tags (`claim_submitted.prior_auth_number_filled`, `notes_pattern:auth_number`), never from storing or reading raw note text. Free text carries PHI and cannot be compared week to week.
+4. **Findings without a contract ID or a quote.** A drift finding must name the contract it breaks and trace to the interview quote that created the requirement (lineage). A finding with neither is a hunch.
+5. **Contracts for things usage can't show.** Trust, satisfaction and phone calls leave no event. Make them open loops with a suggested human check or an event to instrument, not contracts with made-up proxies.
+6. **No privacy floor.** A window with fewer than `min_people` people or `min_tasks` tasks must be suppressed, not reported.
+7. **No learning period.** The first weeks after launch are noise. Never call drift inside `learning_period_weeks`.
+8. **Drift from one bad week.** Drift needs `consecutive_breaches_for_drift` breached weeks in a row.
+9. **Effectors.** A contract observes. It never changes the system, blocks a user or files work without a human approving it.

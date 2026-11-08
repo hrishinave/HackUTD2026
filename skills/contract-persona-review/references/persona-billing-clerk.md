@@ -1,31 +1,39 @@
-# Billing clerk 2: evidence-grounded persona
+# Persona: Billing clerk 2 (interview INT-01)
 
-Synthetic demo persona. Sources only: `legacy/scripts/billing_clerk_2.md`, `kb/people.json` (`billing_clerk_2`), and C-01, C-03 and C-04 in `contracts/medicare_contracts.json`. UI implementation details are deliberately outside this persona.
+Built only from `legacy/scripts/billing_clerk_2.md`, `kb/people.json` and contracts C-01, C-03 and C-04. Fictional, synthetic demo data. Use her exact quotes; never invent new ones.
 
-## Goals and work
+## Who she is
 
-- Billing clerk for four years; handles most imaging claims. Prior authorization is a large part of her day (role-play script).
-- Role: billing_clerk; label: Billing clerk 2; interview INT-01. Relevant contracts: C-01, C-04, C-03 (`kb/people.json`).
-- Goals grounded in those contracts: record required authorization, complete claims in one sitting, and re-check eligibility when coverage changes after a visit.
-- Daily claim volume is **not specified** in these sources. “Pretty much every imaging claim for Medicare Advantage needs one” describes authorization frequency, not a numerical daily workload (C-01, INT-01 14:51, Q-14).
-- Friendly and talkative; describes what she does rather than why (script). Do not infer computer literacy, reading speed or an attention-span threshold.
+- Billing clerk for 4 years at the clinic. Role: `billing_clerk`. Interviewed as INT-01.
+- She handles most of the imaging claims, so prior authorization is a big part of her day.
+- Friendly and talkative, but she describes what she does, not why.
+
+## Goals
+
+- Get each claim out the door correctly on the first try (C-03: finish a claim in one sitting without reopening it).
+- Get prior-auth claims accepted. For her that has always meant "the auth goes in the notes".
+- Handle claims whose coverage changed after the visit, which land in her queue (C-04).
+
+## Daily volume
+
+- "Pretty much every imaging claim for Medicare Advantage needs one." Prior-auth claims are routine for her, not an edge case, so any extra step on them is paid many times a day.
 
 ## Habits and workarounds
 
-- Her own quote: “If it needs prior auth I put the number in the notes, or sometimes just 'see fax'.” (C-01, INT-01 14:32, Q-12.)
-- Her own script statement: “Honestly we mostly just write 'see fax'.” This conflicts with clerk 1's account; retain the disagreement.
-- Facilitator context from the script: she types “AUTH SEE FAX” or “AUTH 48213...” because PA-SCAN returns claims without “AUTH” in notes. She has forgotten that this keyword is what matters. This is contextual evidence, not an interview quote from her.
-- If asked about the legacy PA-NUM field: “There's a field for it? I've never used it. The system doesn't care what's in there.” (Script; no timestamp or question ID supplied.) This supports investigating discoverability and the familiar notes workaround, without assuming any particular new UI defect.
-- Coverage changes are not volunteered. Her own quote: “Oh, that. If coverage changes after the visit, it lands in my queue and I re-run eligibility.” (C-04, INT-01 21:05, Q-19.)
-- If asked about pending claims: “If a claim sits pending more than 30 days I phone the payer and write it on a sticky note.” (Script; no timestamp/question ID supplied.) No event records payer calls; this is an open loop, not a measurable contract in this review.
+- **Auth number in the notes.** "If it needs prior auth I put the number in the notes, or sometimes just 'see fax'." and later "Honestly we mostly just write 'see fax'."
+- **What she actually types** (from the facilitator notes): "AUTH SEE FAX" or "AUTH 48213...". The legacy rule PA-SCAN only accepted a prior-auth claim if the notes contained "AUTH". She has forgotten that the word "AUTH" is what mattered; to her it is just how you do it.
+- **The PA-NUM field.** In the legacy app: "There's a field for it? I've never used it. The system doesn't care what's in there." She does not look for a dedicated auth field, because one never mattered.
+- **Coverage changes.** She never brings this up on her own. Only when asked: "Oh, that. If coverage changes after the visit, it lands in my queue and I re-run eligibility." She relies on the claim showing up in her queue; she does not go looking for it.
+- **Stuck claims.** "If a claim sits pending more than 30 days I phone the payer and write it on a sticky note." She tracks this outside the system.
 
-## Promises and friction to assess
+## Where her patience runs out
 
-- **C-01 / R-01:** Every claim needing prior authorization records its number in its own field. Field-fill target >= 0.95 with 0.05 tolerance; auth-in-notes target <= 0.05 with 0.05 tolerance. Her old workaround is notes or “see fax”; inspect whether the new path makes the dedicated field usable and discoverable.
-- **C-03 / R-03:** Finish claims in one sitting without repeated reopens. Multi-reopen share <= 0.10, tolerance 0.05. Its quote is **Billing clerk 1's**, not hers: “If I have to open a claim twice, something went wrong.” (INT-02 09:44, Q-05.) It is role-level supporting evidence; do not attribute it to clerk 2.
-- **C-04 / R-04:** Re-check eligibility after post-visit coverage changes before the claim goes out. Recheck-within-48-hours share >= 0.90, tolerance 0.10. Her current queue is the cue to re-run eligibility.
-- These sources do not specify where her patience “runs out” numerically. Supported friction is a workflow that restores the old authorization workaround, forces repeated reopenings (role-level C-03 evidence), or loses the queue cue for eligibility. Do not invent an emotional reaction or a new quote.
+- An extra tab or screen on every prior-auth claim. They are most of her imaging work, so she will fall back to the notes field she already knows if the new field isn't right in front of her.
+- Having to reopen a claim to finish it. C-03's only quote (billing clerk 1's, but it is the team norm) is "If I have to open a claim twice, something went wrong."
+- Anything that expects her to remember to re-check eligibility herself. If a coverage-change claim doesn't come to her, she won't notice it.
 
-## Evidence limits
+## The contracts she is held to
 
-All targets, quotes and baselines in this demo are planted synthetic values. Review code to identify supported contract risks; neither this persona nor a walkthrough establishes a real weekly breach or an actual observed abandonment rate.
+- **C-01 (R-01):** Every claim that needs prior authorization records the authorization number in its own field. Fill rate at least 0.95 (tolerance 0.05); auth number typed in notes at most 0.05 (tolerance 0.05). Legacy baseline: 71% put it in notes.
+- **C-03 (R-03):** Clerks finish a claim in one sitting without repeatedly reopening it. Reopened more than once at most 0.10 (tolerance 0.05). Legacy baseline 0.06.
+- **C-04 (R-04):** When coverage changes after the date of service, eligibility is re-checked before the claim goes out. Re-check within 48 h at least 0.90 (tolerance 0.10). Legacy baseline 0.83.

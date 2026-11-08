@@ -1,30 +1,39 @@
 ---
 name: contract-persona-review
-description: Review a built UI before launch as an evidence-grounded user persona to find where tasks would break behaviour contracts or restore old workarounds.
+description: Use before launch to review a new UI build as a real legacy-system user, grounded in her interview quotes and the behaviour contracts, and report every place the build would break a contract or push her back to the old workaround. Pre-launch QA; never changes code.
 ---
 
 # Contract persona review
 
+Drift detection after launch tells you a contract broke weeks too late. This review tries to catch it before anyone uses the build: you play the real user, walk her tasks through the new UI, and check each behaviour contract.
+
+The persona is `references/persona-billing-clerk.md`. The contracts are in `references/examples.md` (and in the project's Feature Requirements documents, if present). Read `references/anti-patterns.md` too.
+
 ## Steps
 
-1. Read the Feature Requirements documents and their Behaviour contract sections. Use [contract.schema.json](references/contract.schema.json), [examples.md](references/examples.md) and [anti-patterns.md](references/anti-patterns.md) to interpret promises, populations, metrics and tolerances. If only contracts are provided, use their requirement statements and evidence and state that limitation.
-2. For the billing demo, read [persona-billing-clerk.md](references/persona-billing-clerk.md). Preserve who actually said each quote; another clerk's contract evidence is not this persona's own statement. For other clients, ground a persona in their supplied evidence before reviewing.
-3. For each requested contract, walk an eligible task as that persona through the supplied UI code: entry, field discovery, navigation, validation, submit, return paths and workarounds. Follow the HTML and JavaScript together. If a browser is available, use it for permitted interactions and distinguish observations from code-based inferences; do not submit live data without authorization.
-4. Compare the path with the actual promise and expected observable events. Use the project's event catalog, or the synthetic [event-catalog.json](references/event-catalog.json), to distinguish missing instrumentation from demonstrated user behaviour. Report every supported obstacle that breaks a contract or pushes the user toward her old workaround. A static review can identify risk; it cannot establish a measured weekly breach.
-5. Return the table below with source locations and the supporting quote's attribution. State contracts with no supported finding and review limits. Keep contract risks separate from preferences.
+1. **Read the requirements.** Read the Feature Requirements documents with their "Behaviour contract" sections for the contracts you were given. Note each contract's promise, expectations, tolerance and events to instrument.
+2. **Become the persona.** Read `references/persona-billing-clerk.md` fully: her goals, daily volume, habits, workarounds, quotes and where her patience runs out. Stay in it.
+3. **Walk each contract's task through the UI code.** For each contract, trace the task step by step through the HTML and JavaScript you were given (and in a browser if one is available): where she starts, what she sees first, what she has to click, what's hidden on another tab, what happens if she types the way she always has.
+4. **Check the contract at each step.**
+   - Could she keep the promise in the main flow, at her pace?
+   - Would her old habit still "work" and quietly break the contract (for example typing the auth number into notes)?
+   - Is every event in "Events to instrument" actually emitted where the contract needs it?
+5. **Report** every place the build would break a contract or force the old workaround, using the table below.
 
 ## Rules
 
-- No finding without a contract ID and a supporting, attributed quote. Do not invent user needs, daily volume, emotions or observed behaviour.
-- Separate **breaks a contract / contract risk** from **preference**. A secondary concern is not a contract failure merely because it is inconvenient.
-- Explain severity from the promise, affected task and evidence, not an imagined measured failure rate. Mark uncertain paths as needing confirmation.
-- Never change code, contract targets, monitoring settings or evidence while reviewing.
+- **No finding without a contract ID or one of her quotes.** If you can't name both the contract and why she'd hit it, it is not a finding.
+- **Separate "breaks a contract" from "preference".** Put preferences (colours, wording she'd dislike) in a short list after the table, not in it.
+- **Never change code.** Report only.
+- Quote her exactly from the persona file. Never invent quotes.
+- Report what you actually find. If the build keeps a contract, say so.
 
 ## Output format
 
-State reviewed files, contracts and method (code walkthrough and any browser observations). Under **Contract findings**, return:
-
-| Contract ID | What she'd hit | Her supporting quote | Severity | Suggested fix |
+| Contract | What she'd hit | Her supporting quote | Severity | Suggested fix |
 |---|---|---|---|---|
+| C-01 | ... | "..." | high / medium / low | ... |
 
-Put file/line references and the causal path in “What she'd hit”; include speaker and interview/timestamp with each quote, identifying evidence from another clerk explicitly. Follow with **Preferences** (clearly labelled, only when supported) and **Coverage and limits**, including contracts with no finding. Do not report a contract risk as measured post-launch drift.
+Severity: **high** means the contract would likely break (beyond twice the tolerance); **medium** means a breach is likely; **low** means a risk worth watching.
+
+After the table: "Contracts kept:" (the contract IDs with no finding and one line why), then "Preferences (not contract breaks):".
