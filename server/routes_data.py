@@ -16,6 +16,7 @@ from server import contract_draft as cd
 from server import contracts as ct
 from server import drift as dr
 from server import feedback as fb
+from server import lifecycle as lc
 from server import settings as st
 from server import simulate as sim
 from server.contracts import load_catalog
@@ -217,6 +218,18 @@ def approve_draft(draft_id: str, x_admin_token: str | None = Header(default=None
 @router.post("/api/drafts/{draft_id}/reject")
 def reject_draft(draft_id: str, body: dict | None = Body(default=None), x_admin_token: str | None = Header(default=None)):
     return _decide(cd.reject_draft, draft_id, x_admin_token, (body or {}).get("reason"))
+
+
+# ---------- contract lifecycle (addendum P3) ----------
+
+@router.get("/api/lifecycle")
+def lifecycle():
+    """Stage of every contract and pending draft: drafted, approved, baselined, kept or broken, renegotiated."""
+    s = _settings()
+    contracts = _contracts()
+    found = dr.findings(contracts, _events(), s) if s["drift_enabled"] else []
+    return lc.contract_stages(contracts, cd.load_drafts(status="draft"), found, fb.load_filed(), s,
+                              dr.load_legacy_events())
 
 
 # ---------- eval ----------
