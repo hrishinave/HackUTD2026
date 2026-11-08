@@ -1,0 +1,72 @@
+{
+  "C-01": {
+    "stage": "renegotiated",
+    "stages": {
+      "drafted": true,
+      "approved": true,
+      "baselined": true,
+      "kept": false,
+      "broken": true,
+      "renegotiated": true
+    },
+    "detail": {
+      "watching": "on"
+    }
+  },
+  "C-02": {
+    "stage": "kept",
+    "stages": {
+      "drafted": true,
+      "approved": true,
+      "baselined": true,
+      "kept": true,
+      "broken": false,
+      "renegotiated": false
+    },
+    "detail": {
+      "watching": "on"
+    }
+  },
+  "C-03": {
+    "stage": "kept",
+    "stages": {
+      "drafted": true,
+      "approved": true,
+      "baselined": true,
+      "kept": true,
+      "broken": false,
+      "renegotiated": false
+    },
+    "detail": {
+      "watching": "on"
+    }
+  },
+  "C-04": {
+    "stage": "kept",
+    "stages": {
+      "drafted": true,
+      "approved": true,
+      "baselined": true,
+      "kept": true,
+      "broken": false,
+      "renegotiated": false
+    },
+    "detail": {
+      "watching": "on"
+    }
+  },
+  "C-05": {
+    "stage": "kept",
+    "stages": {
+      "drafted": true,
+      "approved": true,
+      "baselined": true,
+      "kept": true,
+      "broken": false,
+      "renegotiated": false
+    },
+    "detail": {
+      "watching": "on"
+    }
+  }
+}
