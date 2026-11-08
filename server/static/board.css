@@ -571,3 +571,20 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   .live-controls > button { flex: 1 1 calc(50% - 12px); }
   .live-ask { flex-basis: 100% !important; }
 }
+
+/* Past interviews, transcript drawer, automatic drafting status (v3) */
+.past-interviews { display: grid; gap: 6px; min-width: 0; }
+.past-interviews label { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; }
+.past-interviews-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
+.past-interviews-row select { min-width: 0; max-width: min(320px, 100%); }
+.draft-controls select { min-width: 0; max-width: 100%; }
+#draft-company { margin: 0 0 12px; }
+.draft-status { margin: 14px 0 0; padding: 10px 12px; border: 3px solid var(--ink); background: #fff0a8; color: var(--ink); font-size: 13px; font-weight: 700; line-height: 1.5; overflow-wrap: anywhere; }
+.draft-status[data-state="done"] { background: #d8f3dc; }
+.draft-status[data-state="error"] { background: #ffb3c6; }
+.draft-status a { margin-left: 6px; color: var(--ink); font-weight: 900; }
+.draft-card .text-link-button { display: block; margin: 10px 0 16px; padding: 0; border: 0; background: none; color: var(--ink); font: inherit; font-size: 13px; font-weight: 900; text-decoration: underline; cursor: pointer; }
+.transcript-drawer { display: none; gap: 14px; align-content: start; }
+.transcript-drawer[open] { display: grid; }
+.transcript-doc { max-height: none; min-height: 200px; }
+@media (max-width: 520px) { .past-interviews, .past-interviews-row select { width: 100%; max-width: 100%; } .draft-controls > * { max-width: 100%; } }

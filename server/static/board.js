@@ -36,7 +36,8 @@
   const ADMIN_TOKEN_KEY = "pact.admin_token";
 
   // Company-scoped Pact routes get ?company_id= for the company selected on the board.
-  const SCOPED_PATH = /^\/api\/(settings|drift|findings|lifecycle|filed)(\/|\?|$)|^\/api\/contracts\/[^/?]+\/sf-requirement/;
+  const SCOPED_PATH = /^\/api\/(settings|drift|findings|lifecycle|filed|contracts|drafts)(\/|\?|$)/;
+  const DEMO_COMPANY = "medicare_billing_demo";
   function scopedPath(path) {
     if (useMocks || !SCOPED_PATH.test(path)) return path;
     return path + (path.includes("?") ? "&" : "?") + "company_id=" + encodeURIComponent(selectedCompany);
@@ -135,6 +136,49 @@
     return { title: "Interview", endpoint: "/api/interviews/" + encodeURIComponent(selectedInterview) + "/state", mock: "/static/mock/state.json" };
   }
 
+  // Saved and running interviews from GET /api/interviews, newest first.
+  let interviewItems = [];
+  const interviewNumber = (id) => Number(/^INT-(\d+)$/.exec(id || "")?.[1] || 0);
+  const interviewCompany = (item) => item?.company_id || DEMO_COMPANY;
+  const interviewIdentity = (item) => item.person_name || item.label || item.interviewee || "Interview";
+
+  function companyLabel() {
+    const item = interviewItems.find((entry) => interviewCompany(entry) === selectedCompany && entry.company_name);
+    return selectedCompanyName || item?.company_name || (selectedCompany === DEMO_COMPANY ? "Medicare Billing Office" : selectedCompany.replaceAll("_", " "));
+  }
+
+  function companyInterviews() {
+    return useMocks ? interviewItems : interviewItems.filter((item) => interviewCompany(item) === selectedCompany);
+  }
+
+  // The Contracts tab's "Saved interview" select: every interview for the selected company, newest first.
+  function populateDraftInterviews(preferId) {
+    const select = byId("draft-interview");
+    const previous = preferId || select.value;
+    const items = companyInterviews();
+    byId("draft-company").textContent = "Company: " + companyLabel();
+    if (!items.length) {
+      const option = element("option", "No interviews for " + companyLabel() + " yet"); option.value = "";
+      select.replaceChildren(option);
+    } else {
+      select.replaceChildren(...items.map((item) => {
+        const option = element("option", [item.interview_id, interviewIdentity(item), item.position].filter(Boolean).join(" · "));
+        option.value = item.interview_id; return option;
+      }));
+      const fallback = items.find((item) => item.interview_id === selectedInterview)?.interview_id || items[0].interview_id;
+      select.value = items.some((item) => item.interview_id === previous) ? previous : fallback;
+    }
+    renderDrafts();
+  }
+
+  // The company changed (start dialog, picking a past interview): rescope the Contracts tab.
+  function companyChanged() {
+    received.delete("contracts:"); received.delete("drift:");
+    draftRecords = [];
+    populateDraftInterviews();
+    if (currentRoute().name === "contracts") showRoute();
+  }
+
   async function loadInterviewList() {
     const picker = byId("interview-picker");
     if (!picker) return;
@@ -142,22 +186,30 @@
       const response = await fetch(useMocks ? "/static/mock/interviews.json" : "/api/interviews", { cache: "no-store" });
       if (!response.ok) throw new Error("Interview list unavailable");
       const interviews = await response.json();
+      interviewItems = (Array.isArray(interviews) ? interviews : []).filter((item) => item?.interview_id).sort((a, b) => interviewNumber(b.interview_id) - interviewNumber(a.interview_id));
       picker.replaceChildren();
-      if (!interviews.length) {
-        picker.append(element("option", "No previous interviews"));
-        picker.disabled = true;
+      populateDraftInterviews();
+      if (!interviewItems.length) {
+        picker.append(element("option", "No past interviews yet"));
+        picker.disabled = true; byId("interview-transcript").disabled = true;
         return;
       }
-      for (const interview of interviews) {
-        const identity = interview.person_name || interview.label || interview.interviewee || "Interview";
-        const option = element("option", interview.interview_id + " · " + (interview.company_name ? interview.company_name + " · " : "") + identity + (interview.position ? " · " + interview.position : ""));
+      picker.disabled = false;
+      for (const interview of interviewItems) {
+        const option = element("option", [interview.interview_id, interview.company_name, interviewIdentity(interview), interview.position].filter(Boolean).join(" · "));
         option.value = interview.interview_id;
         picker.append(option);
       }
-      if (!interviews.some((item) => item.interview_id === selectedInterview)) selectedInterview = interviews[0].interview_id;
+      if (!interviewItems.some((item) => item.interview_id === selectedInterview)) {
+        selectedInterview = (interviewItems.find((item) => interviewCompany(item) === selectedCompany) || interviewItems[0]).interview_id;
+      }
       picker.value = selectedInterview;
+      byId("interview-transcript").disabled = false;
       if (currentRoute().name === "interview") showRoute();
-    } catch { picker.replaceChildren(element("option", "Could not load previous interviews")); }
+    } catch {
+      picker.replaceChildren(element("option", "Could not load past interviews"));
+      byId("draft-interview").replaceChildren(element("option", "Could not load interviews"));
+    }
   }
 
   async function loadInterviewOptions() {
@@ -177,7 +229,8 @@
       companyPicker.addEventListener("input", () => {
         selectedCompanyName = companyPicker.value.trim();
         const match = (data.companies || []).find((company) => company.name.toLowerCase() === selectedCompanyName.toLowerCase());
-        selectedCompany = match?.id || selectedCompanyName.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "new_client";
+        const next = match?.id || selectedCompanyName.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "new_client";
+        if (next !== selectedCompany) { selectedCompany = next; companyChanged(); }
       });
     } catch {
       companyPicker.placeholder = "Enter a new company name";
@@ -191,7 +244,9 @@
     active: false, starting: false, id: "", T0: Date.now(), ws: null, outbox: [], reconnectTimer: null,
     queue: { based_on_t_ms: 0, questions: [] }, queueReady: false, lastFinalT: 0, lastPlayed: null,
     clips: Object.create(null), playing: false, tapPending: false, serial: 0, tailTimer: null,
-    lastTapToAudioMs: null, recognitionActive: false, recognitionTimer: null, recognitionRetryMs: 0
+    lastTapToAudioMs: null, recognitionActive: false, recognitionTimer: null, recognitionRetryMs: 0,
+    ending: false, onRecognitionEnd: null, sentCount: 0, ignoredWhilePlaying: 0, heardTimer: null,
+    playingWatchdog: null, utterance: null
   };
   const liveNow = () => Date.now() - live.T0;
   const player = new Audio();
@@ -252,7 +307,7 @@
     byId("live-ask").disabled = !ready || !live.queue.questions.length;
     byId("live-skip").disabled = !ready || live.queue.questions.length < 2;
     byId("live-repeat").disabled = !live.active || !live.lastPlayed;
-    byId("live-end").disabled = !live.active;
+    byId("live-end").disabled = !live.active || live.ending;
     setLive("live-latency", live.lastTapToAudioMs === null ? "—" : live.lastTapToAudioMs + " ms");
     setLive("live-id", live.id || "");
   }
@@ -311,28 +366,41 @@
     recognition.continuous = true; recognition.interimResults = false; recognition.lang = "en-US";
     recognition.onstart = () => { live.recognitionActive = true; setLive("live-recognition", "listening"); };
     recognition.onresult = (event) => {
-      if (!live.active || live.playing) return; // do not transcribe the question being played
+      if (!live.active) return;
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
         if (!event.results[index].isFinal) continue;
         const text = event.results[index][0].transcript.trim();
         if (!text) continue;
+        if (live.playing) { // do not transcribe the question being played; say so instead of dropping it silently
+          live.ignoredWhilePlaying += 1;
+          setLive("live-recognition", "listening · ignored " + live.ignoredWhilePlaying + " sentence" + (live.ignoredWhilePlaying === 1 ? "" : "s") + " heard while a question played");
+          continue;
+        }
         live.lastFinalT = liveNow();
         liveSend({ type: "utterance", text, final: true, t_ms: live.lastFinalT });
+        live.sentCount += 1;
+        clearTimeout(live.heardTimer);
+        setLive("live-recognition", "listening · " + live.sentCount + " sentence" + (live.sentCount === 1 ? "" : "s") + " sent");
         setLive("live-last-final", text);
       }
     };
     recognition.onend = () => {
       live.recognitionActive = false;
-      if (!live.active || live.recognitionBlocked) return;
+      if (live.onRecognitionEnd) { live.onRecognitionEnd(); return; } // End interview is flushing the last sentence
+      if (!live.active || live.recognitionBlocked || live.ending) return;
       clearTimeout(live.recognitionTimer);
       live.recognitionTimer = setTimeout(() => { live.recognitionTimer = null; if (live.active) startRecognition(); }, live.recognitionRetryMs);
       live.recognitionRetryMs = 0;
     };
     recognition.onerror = (event) => {
-      if (["not-allowed", "service-not-allowed", "audio-capture"].includes(event.error)) {
+      if (["not-allowed", "service-not-allowed"].includes(event.error)) {
         clearTimeout(live.recognitionTimer);
-        setLive("live-recognition", "microphone permission denied or input unavailable; check Chrome's microphone selection");
+        setLive("live-recognition", "microphone permission denied; allow the microphone for this page in Chrome, then start the interview again");
         live.recognitionBlocked = true;
+      } else if (event.error === "audio-capture") {
+        // Often transient (a Bluetooth headset switching profiles when a question plays): keep retrying.
+        live.recognitionRetryMs = 2000;
+        setLive("live-recognition", "no microphone input; check Chrome's microphone selection · retrying in two seconds");
       } else if (event.error === "network") {
         live.recognitionRetryMs = 1000;
         setLive("live-recognition", "network error; retrying in one second");
@@ -381,6 +449,13 @@
     player.pause();
     window.speechSynthesis?.cancel();
     live.playing = true;
+    // Speech is ignored while a question plays, so never let a missing "ended" event leave it ignored for good.
+    clearTimeout(live.playingWatchdog);
+    live.playingWatchdog = setTimeout(() => {
+      if (serial !== live.serial || !live.playing) return;
+      live.playing = false;
+      setLive("live-playback", "Question playback did not report its end; listening again.");
+    }, 20000);
     let reported = false;
     let voiceAttempted = false;
     setLive("live-playback", "Starting question…");
@@ -400,7 +475,7 @@
       clearTimeout(live.tailTimer);
       live.tailTimer = setTimeout(() => {
         if (serial !== live.serial) return;
-        live.playing = false;
+        live.playing = false; clearTimeout(live.playingWatchdog);
         setLive("live-playback", reported ? "Ready for the next question." : "Question could not play. Check the browser audio output.");
       }, 300);
     };
@@ -409,6 +484,7 @@
       voiceAttempted = true;
       if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === "undefined") { done(); return; }
       const utterance = new SpeechSynthesisUtterance((question.cue || "") + " " + question.text);
+      live.utterance = utterance; // Chrome drops onend for garbage-collected utterances
       utterance.rate = 1.05; utterance.volume = 0.6;
       utterance.onstart = started; utterance.onend = done;
       utterance.onerror = (event) => { console.error("Question voice failed:", event.error); done(); };
@@ -470,6 +546,7 @@
     live.active = false;
     for (const list of [...clipWaiters.values()]) for (const finish of list) finish(false);
     clearTimeout(live.reconnectTimer); clearTimeout(live.recognitionTimer); clearTimeout(live.tailTimer);
+    clearTimeout(live.heardTimer); clearTimeout(live.playingWatchdog); live.utterance = null; live.onRecognitionEnd = null;
     try { recognition?.stop(); } catch { /* already stopped */ }
     live.recognitionActive = false;
     const socket = live.ws; live.ws = null;
@@ -506,6 +583,12 @@
     live.T0 = Date.now();
     live.lastFinalT = 0; live.outbox.length = 0; live.queue = { based_on_t_ms: 0, questions: [] };
     live.queueReady = false; live.lastPlayed = null; live.clips = Object.create(null); live.lastTapToAudioMs = null; live.id = "";
+    live.ending = false; live.sentCount = 0; live.ignoredWhilePlaying = 0;
+    setDraftStatus("");
+    clearTimeout(live.heardTimer);
+    live.heardTimer = setTimeout(() => {
+      if (live.active && !live.sentCount && !live.recognitionBlocked) setLive("live-recognition", "no speech heard in 20 seconds; check Chrome's microphone permission and input device");
+    }, 20000);
     byId("live-panel").hidden = false;
     setLive("live-connection", "starting interview…"); setLive("live-ack", ""); setLive("live-last-final", "—"); setLive("live-last-tap", "—");
     setLive("live-playback", "Waiting for the first question.");
@@ -536,7 +619,157 @@
     })();
   }
 
-  function draftInterview(record) { return /^DR-(INT-\d{2})-\d+$/.exec(record.draft_id || "")?.[1] || "Unknown interview"; }
+  // Stop recognition and wait for its last final result, so the closing sentence is not lost.
+  function flushRecognition(maxMs) {
+    clearTimeout(live.recognitionTimer);
+    return new Promise((resolve) => {
+      if (!recognition || !live.recognitionActive) { resolve(); return; }
+      const finish = () => { clearTimeout(timer); live.onRecognitionEnd = null; resolve(); };
+      const timer = setTimeout(finish, maxMs);
+      live.onRecognitionEnd = finish;
+      try { recognition.stop(); } catch { finish(); }
+    });
+  }
+
+  // "End interview" button only: flush speech, close the interview, then draft contracts in the background.
+  async function endInterview() {
+    if (!live.active || live.ending || live.starting) return;
+    const interviewId = live.id;
+    live.ending = true; renderLive();
+    setLive("live-playback", "Ending interview: saving the last sentence…");
+    await flushRecognition(1500);
+    const sent = live.sentCount;
+    stopLive("Interview ended.");
+    live.ending = false; renderLive();
+    if (!interviewId) return;
+    await loadInterviewList();
+    autoDraft(interviewId, sent);
+  }
+
+  function setDraftStatus(text, state = "busy", interviewId = "") {
+    for (const id of ["live-draft-status", "draft-auto-status"]) {
+      const node = byId(id);
+      if (!node) continue;
+      node.hidden = !text; node.dataset.state = state;
+      node.replaceChildren(text || "");
+      if (interviewId) {
+        const link = element("a", id === "live-draft-status" ? "Open Contracts" : "Show " + interviewId);
+        link.href = "#contracts";
+        link.addEventListener("click", () => { populateDraftInterviews(interviewId); });
+        node.append(link);
+      }
+    }
+  }
+
+  // POST /api/drafts. Right after an interview ends the saved state can lag a moment, so 404/422 may be retried.
+  async function postDrafts(interviewId, attempts = 1) {
+    for (let attempt = 1; ; attempt += 1) {
+      const response = await fetch(scopedPath("/api/drafts"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ interview_id: interviewId }), signal: AbortSignal.timeout(120000) });
+      if (response.ok) return response.json();
+      const body = await response.json().catch(() => ({}));
+      const detail = typeof body?.detail === "string" ? body.detail : typeof body?.error === "string" ? body.error : "";
+      if ((response.status === 404 || response.status === 422) && attempt < attempts) { await new Promise((resolve) => setTimeout(resolve, 1500)); continue; }
+      if (response.status === 404) throw new Error(detail && detail !== "Not Found" ? detail : "No saved interview yet for " + interviewId);
+      if (response.status === 422) throw new Error(/no transcript/i.test(detail) ? "No transcript yet for " + interviewId + ", so there is nothing to draft." : detail || "The server could not draft " + interviewId);
+      if (response.status === 409) throw new Error("Already drafting " + interviewId + ", wait a few seconds");
+      throw new Error(detail ? "Drafting failed: " + detail : "Drafting failed, try again; earlier drafts are unchanged");
+    }
+  }
+
+  async function autoDraft(interviewId, sentCount) {
+    if (useMocks) return;
+    let lines = 0;
+    try {
+      const response = await fetch("/api/interviews/" + encodeURIComponent(interviewId) + "/state", { cache: "no-store", signal: AbortSignal.timeout(6000) });
+      if (response.ok) lines = ((await response.json()).transcript || []).length;
+    } catch { /* fall back to the count sent from this page */ }
+    if (!lines && !sentCount) { setDraftStatus("No transcript was recorded for " + interviewId + ", so no contracts were drafted.", "error"); return; }
+    if (draftBusy || decisionBusy) { setDraftStatus("Another drafting run is in progress. Draft " + interviewId + " from Contracts when it finishes.", "error"); return; }
+    draftBusy = true; renderDrafts();
+    setDraftStatus("Drafting contracts from " + interviewId + "…");
+    try {
+      const data = await postDrafts(interviewId, 3);
+      droppedByInterview.set(interviewId, data.rejected || []);
+      const ready = (data.items || []).filter((record) => record.status === "draft").length;
+      setDraftStatus(ready ? ready + " draft" + (ready === 1 ? "" : "s") + " from " + interviewId + " ready for review in Contracts." : "Drafting " + interviewId + " finished with no new drafts.", "done", interviewId);
+    } catch (error) {
+      setDraftStatus(error.name === "TimeoutError" ? "Drafting " + interviewId + " is still unconfirmed. Check Contracts before starting another run." : error.message, "error");
+    } finally {
+      draftBusy = false;
+      try { draftRecords = await readDrafts(AbortSignal.timeout(10000)); } catch { /* the list refreshes on the next visit */ }
+      received.delete("contracts:");
+      populateDraftInterviews(interviewId);
+    }
+  }
+
+  // ---- Transcripts: GET /api/interviews/{id}/transcript (markdown), or built here from the interview state ----
+  let transcriptText = "";
+  let transcriptGeneration = 0;
+
+  function transcriptFromState(state, interviewId) {
+    const item = interviewItems.find((entry) => entry.interview_id === interviewId) || {};
+    const out = ["# Interview transcript · " + interviewId, ""];
+    const company = state.company_name || item.company_name;
+    const person = state.person_name || item.person_name || state.label || item.label;
+    const position = state.position || item.position;
+    if (company) out.push("- Company: " + company);
+    if (person) out.push("- Person: " + person);
+    if (position) out.push("- Position: " + position);
+    out.push("", "## Transcript", "");
+    const events = (state.transcript || []).map((line) => ({ t: line.t_ms, kind: "said", text: line.text }));
+    events.push(...(state.played || []).map((question) => ({ t: question.played_at, kind: "asked", id: question.id, text: question.text })));
+    events.sort((a, b) => (a.t || 0) - (b.t || 0) || (a.kind === "asked" ? -1 : 1));
+    for (const entry of events) {
+      if (entry.kind === "asked") out.push("**[" + timeLabel(entry.t) + "] Interviewer (" + entry.id + "):** " + (entry.text || ""), "");
+      else out.push("[" + timeLabel(entry.t) + "] " + (person || "Interviewee") + ": " + (entry.text || ""), "");
+    }
+    if (!events.length) out.push("_No speech or questions were recorded in this interview._", "");
+    return out.join("\n");
+  }
+
+  async function fetchTranscript(interviewId) {
+    if (!useMocks) {
+      const response = await fetch("/api/interviews/" + encodeURIComponent(interviewId) + "/transcript", { cache: "no-store", signal: AbortSignal.timeout(6000) });
+      if (response.ok) {
+        if ((response.headers.get("content-type") || "").includes("json")) {
+          const body = await response.json();
+          return typeof body === "string" ? body : body.markdown || body.text || JSON.stringify(body, null, 2);
+        }
+        return response.text();
+      }
+      const body = await response.clone().json().catch(() => null);
+      if (response.status !== 404 || body?.detail !== "Not Found") throw new Error(typeof body?.detail === "string" ? body.detail : "Transcript unavailable for " + interviewId);
+    }
+    // Route not merged yet (FastAPI's bare "Not Found"), or preview mode: build it from the interview state.
+    const response = await fetch(useMocks ? "/static/mock/state.json" : "/api/interviews/" + encodeURIComponent(interviewId) + "/state", { cache: "no-store", signal: AbortSignal.timeout(6000) });
+    if (!response.ok) throw new Error("Transcript unavailable for " + interviewId);
+    return transcriptFromState(await response.json(), interviewId);
+  }
+
+  async function openTranscript(interviewId) {
+    if (!interviewId) return;
+    const version = ++transcriptGeneration;
+    transcriptText = "";
+    const item = interviewItems.find((entry) => entry.interview_id === interviewId);
+    byId("transcript-title").textContent = "Transcript · " + interviewId;
+    byId("transcript-meta").textContent = item ? [item.company_name, interviewIdentity(item), item.position].filter(Boolean).join(" · ") : "";
+    byId("transcript-status").textContent = "";
+    byId("transcript-download").disabled = true; byId("transcript-copy").disabled = true;
+    byId("transcript-doc").textContent = "Loading transcript…";
+    if (!byId("transcript-dialog").open) byId("transcript-dialog").showModal();
+    try {
+      const text = await fetchTranscript(interviewId);
+      if (version !== transcriptGeneration) return;
+      transcriptText = text;
+      byId("transcript-doc").textContent = text;
+      byId("transcript-download").disabled = false; byId("transcript-copy").disabled = false;
+      byId("transcript-download").dataset.filename = interviewId + "-transcript.md";
+    } catch (error) {
+      if (version === transcriptGeneration) byId("transcript-doc").textContent = (error.name === "TimeoutError" ? "Transcript request timed out." : error.message) + " Try again in a moment.";
+    }
+  }
+
+  function draftInterview(record) { return record.interview_id || /^DR-(INT-\d{2,})-\d+$/.exec(record.draft_id || "")?.[1] || "Unknown interview"; }
 
   function expectationText(expectation) {
     const { template, target, tolerance, description, unit, params = {} } = expectation;
@@ -587,6 +820,9 @@
       for (const check of record.checks || []) checks.append(element("li", check));
       card.append(checks);
       if (record.rationale) card.append(element("p", record.rationale, "muted-copy"));
+      const transcriptLink = element("button", "View transcript", "text-link-button"); transcriptLink.type = "button";
+      transcriptLink.addEventListener("click", () => openTranscript(draftInterview(record)));
+      card.append(transcriptLink);
       const actions = element("div", null, "draft-actions");
       for (const action of ["approve", "reject"]) {
         const button = element("button", action === "approve" ? "Approve" : "Reject", action === "approve" ? "primary-button" : "secondary-button");
@@ -595,7 +831,8 @@
       }
       card.append(actions); list.append(card);
     }
-    if (!records.length) list.append(element("p", "No pending drafts for " + interview + ". Draft a saved interview to find new measurable requirements and open loops.", "empty-copy"));
+    if (!interview) list.append(element("p", "No interviews for " + companyLabel() + " yet. Start one on the Interview tab; its drafts appear here when it ends.", "empty-copy"));
+    else if (!records.length) list.append(element("p", "No pending drafts for " + interview + ". Draft a saved interview to find new measurable requirements and open loops.", "empty-copy"));
     byId("draft-list").replaceChildren(list);
     const dropped = droppedByInterview.get(interview) || [];
     byId("draft-dropped").querySelector("summary").textContent = "Dropped by checks (" + dropped.length + ")";
@@ -603,8 +840,9 @@
     for (const item of dropped) droppedList.append(element("li", item.requirement + " · " + (item.reasons || []).join("; ")));
     if (!dropped.length) droppedList.append(element("li", "No dropped results from a drafting run in this browser session.", "muted-copy"));
     byId("draft-dropped-list").replaceChildren(droppedList);
-    byId("draft-run").disabled = draftBusy || decisionBusy;
-    byId("draft-interview").disabled = draftBusy || decisionBusy;
+    byId("draft-run").disabled = draftBusy || decisionBusy || !interview;
+    byId("draft-transcript").disabled = !interview;
+    byId("draft-interview").disabled = draftBusy || decisionBusy || !interview;
     byId("draft-loading").hidden = !draftBusy;
     const loops = document.createDocumentFragment();
     for (const record of draftRecords.filter((item) => item.kind === "open_loop" && item.status === "approved")) {
@@ -672,7 +910,7 @@
           }
         }
       } else {
-        const response = await fetch("/api/drafts/" + encodeURIComponent(record.draft_id) + "/" + action, { method: "POST", headers: { "Content-Type": "application/json", "X-Admin-Token": token }, body: JSON.stringify(action === "reject" ? { reason } : {}), signal: AbortSignal.timeout(15000) });
+        const response = await fetch(scopedPath("/api/drafts/" + encodeURIComponent(record.draft_id) + "/" + action), { method: "POST", headers: { "Content-Type": "application/json", "X-Admin-Token": token }, body: JSON.stringify(action === "reject" ? { reason } : {}), signal: AbortSignal.timeout(15000) });
         if (response.status === 401) {
           try { sessionStorage.removeItem(ADMIN_TOKEN_KEY); } catch { /* Storage may be blocked. */ }
           throw new Error("Admin token was not accepted. Try the decision again with the client's current token.");
@@ -689,6 +927,7 @@
   async function runDrafts() {
     if (draftBusy || decisionBusy) return;
     const interview = byId("draft-interview").value;
+    if (!interview) return;
     draftBusy = true; renderDrafts();
     byId("draft-message").textContent = "Drafting from saved interview evidence. Usually 10–30 seconds.";
     try {
@@ -698,11 +937,7 @@
         if (interview !== mockDraftBundle.interview_id) throw new Error("No saved interview yet for " + interview);
         data = structuredClone(mockDraftBundle);
       } else {
-        const response = await fetch("/api/drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ interview_id: interview }), signal: AbortSignal.timeout(120000) });
-        if (response.status === 404) throw new Error("No saved interview yet for " + interview);
-        if (response.status === 409) throw new Error("Already drafting, wait a few seconds");
-        if (!response.ok) throw new Error("Drafting failed, try again; earlier drafts are unchanged");
-        data = await response.json();
+        data = await postDrafts(interview);
       }
       droppedByInterview.set(interview, data.rejected || []);
       draftRecords = await readDrafts(AbortSignal.timeout(10000));
@@ -1064,8 +1299,13 @@
       article.append(details, requirementView(contract));
       list.append(article);
     }
-    if (!data.contracts.length) list.append(element("p", "No contracts have been supplied yet.", "empty-copy"));
+    if (!data.contracts.length) {
+      const empty = element("article", null, "panel evidence-panel");
+      empty.append(element("h3", "No approved contracts yet"), element("p", "No approved contracts for " + companyLabel() + " yet. Finish an interview and approve its drafts.", "empty-copy"));
+      list.append(empty);
+    }
     byId("contracts-list").replaceChildren(list);
+    byId("demo-open-loops").hidden = !useMocks && selectedCompany !== DEMO_COMPANY;
 
     const contradictions = document.createDocumentFragment();
     if (!data.interview) contradictions.append(element("p", "Interview contradictions are unavailable until the interview state can be loaded.", "empty-copy"));
@@ -1097,7 +1337,8 @@
 
   function showRoute() {
     const route = currentRoute();
-    const config = views[route.name];
+    // The Interview tab shows the interview chosen in "Past interviews" (views.interview is only its preview fallback).
+    const config = route.name === "interview" ? interviewConfig() : views[route.name];
     const currentGeneration = ++generation;
     clearTimeout(pollTimer);
     controller?.abort();
@@ -1179,7 +1420,6 @@
   }
 
   window.addEventListener("hashchange", showRoute);
-  byId("draft-interview").value = useMocks ? "INT-01" : "INT-02";
   byId("start-interview")?.addEventListener("click", () => { prefetchNextId(); byId("start-interview-message").textContent = ""; byId("start-interview-dialog").showModal(); });
   byId("start-interview-cancel")?.addEventListener("click", () => byId("start-interview-dialog").close());
   // No await before startNewInterview: it starts audio and recognition inside this gesture.
@@ -1187,7 +1427,7 @@
   byId("live-ask").addEventListener("click", () => onTap("play"));
   byId("live-skip").addEventListener("click", () => onTap("next"));
   byId("live-repeat").addEventListener("click", () => onTap("repeat"));
-  byId("live-end").addEventListener("click", () => stopLive("Interview ended."));
+  byId("live-end").addEventListener("click", endInterview);
   document.addEventListener("keydown", (event) => {
     if (event.code !== "Space" || event.repeat || !live.active) return;
     const target = event.target;
@@ -1197,9 +1437,34 @@
     onTap("play");
   });
   renderLive();
-  byId("interview-picker")?.addEventListener("change", (event) => { selectedInterview = event.target.value; showRoute(); });
+  byId("interview-picker")?.addEventListener("change", (event) => {
+    selectedInterview = event.target.value;
+    const item = interviewItems.find((entry) => entry.interview_id === selectedInterview);
+    if (item && !useMocks && interviewCompany(item) !== selectedCompany) {
+      selectedCompany = interviewCompany(item); selectedCompanyName = item.company_name || "";
+      companyChanged();
+    }
+    populateDraftInterviews(selectedInterview);
+    showRoute();
+  });
+  byId("interview-transcript").addEventListener("click", () => openTranscript(selectedInterview));
   byId("draft-interview").addEventListener("change", () => { byId("draft-message").textContent = ""; renderDrafts(); });
   byId("draft-run").addEventListener("click", runDrafts);
+  byId("draft-transcript").addEventListener("click", () => openTranscript(byId("draft-interview").value));
+  byId("transcript-close").addEventListener("click", () => byId("transcript-dialog").close());
+  byId("transcript-dialog").addEventListener("close", () => { ++transcriptGeneration; });
+  byId("transcript-download").addEventListener("click", () => {
+    if (!transcriptText) return;
+    const url = URL.createObjectURL(new Blob([transcriptText], { type: "text/markdown;charset=utf-8" }));
+    const link = element("a"); link.href = url; link.download = byId("transcript-download").dataset.filename || "transcript.md";
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+  byId("transcript-copy").addEventListener("click", async () => {
+    if (!transcriptText) return;
+    try { await navigator.clipboard.writeText(transcriptText); byId("transcript-status").textContent = "Copied"; }
+    catch { byId("transcript-status").textContent = "Copy is blocked here. Use Download instead."; }
+  });
   function finishDialog(id, value) {
     const resolve = dialogResolvers.get(id);
     dialogResolvers.delete(id);
