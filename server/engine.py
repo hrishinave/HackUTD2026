@@ -134,15 +134,22 @@ class InterviewSession:
         for f in result.slot_fills:
             qid = f.get("answered_question_id")
             origin = self._origin_of(qid)
-            self.slot_fills[f"{f['contract_id']}.{f['slot']}"] = {
+            cid, slot = f["contract_id"], f["slot"]
+            if slot.startswith(f"{cid}."):  # the model sometimes repeats the contract prefix
+                slot = slot[len(cid) + 1:]
+            self.slot_fills[f"{cid}.{slot}"] = {
                 "value": f.get("value", ""), "quote": f.get("quote", ""),
                 "question_id": qid if origin != "unprompted" else None, "question_origin": origin,
                 "t_ms": self.last_called_t if self.last_called_t >= 0 else None,
             }
         last_played = self.played[-1]["id"] if self.played else None
+        def key(c: dict) -> tuple:
+            # one entry per (kind, rule); without a rule, per wording
+            if c.get("rule_id"):
+                return (c.get("kind"), c["rule_id"])
+            return (c.get("kind"), _norm(c.get("statement_a", "")), _norm(c.get("statement_b", "")))
         for c in result.contradictions:
-            key = (c.get("statement_a"), c.get("statement_b"))
-            if all((x.get("statement_a"), x.get("statement_b")) != key for x in self.contradictions):
+            if all(key(x) != key(c) for x in self.contradictions):
                 self.contradictions.append({**c, "after_question_id": last_played})
         self.rules_mentioned.update(result.rules_mentioned)
 

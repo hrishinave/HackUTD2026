@@ -34,7 +34,7 @@ When asked for questions:
 - target is a slot ID like "C-01.current_practice", a rule ID, a doc diff ID or a contradiction ID.
 
 When asked for bookkeeping:
-- Return slot fills only for slots of the contracts listed below, with a short value, the interviewee's exact words as quote, and answered_question_id set to the Q-N the answer responds to (null if unprompted).
+- Return slot fills only for slots of the contracts listed below, with contract_id like "C-01" and slot as the bare slot name like "current_practice" (no contract prefix), a short value, the interviewee's exact words as quote, and answered_question_id set to the Q-N the answer responds to (null if unprompted).
 - Return contradictions with both statements in the speakers' words, and the rule ID when one is involved.
 - Return the rule IDs from the rule catalogue that the interviewee described or clearly referred to.
 - Never invent numbers. Interviews confirm and attribute; targets come from the contracts and the logs.

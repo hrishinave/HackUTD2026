@@ -16,6 +16,16 @@ from server.kb import build_brief, load_bank
 
 log = logging.getLogger("fitcheck.engine")
 
+# uvicorn only configures its own loggers; give ours (fitcheck.engine, fitcheck.llm) a handler
+# so warm-ups, cache numbers and played events show in the server log.
+_root = logging.getLogger("fitcheck")
+if not _root.handlers:
+    _h = logging.StreamHandler()
+    _h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s", "%H:%M:%S"))
+    _root.addHandler(_h)
+    _root.setLevel(logging.INFO)
+    _root.propagate = False
+
 
 def _startup_prune() -> None:
     try:

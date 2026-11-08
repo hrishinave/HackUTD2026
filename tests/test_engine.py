@@ -99,3 +99,17 @@ def test_scripted_provider_returns_no_questions(monkeypatch):
     from server import llm
     monkeypatch.setenv("LLM_PROVIDER", "scripted")
     assert asyncio.run(llm.complete_questions("B", "x")) == []
+
+def test_slot_given_with_contract_prefix_is_normalised():
+    s = make()
+    s.apply_bookkeeping(BookResult([{"contract_id": "C-01", "slot": "C-01.frequency", "value": "most", "quote": "q", "answered_question_id": None}], [], []))
+    assert "C-01.frequency" in s.state()["slot_fills"] and s.state()["coverage"] > 0
+    q = s.apply_questions([new("How often does that happen?", "C-01.frequency")], 1, 0)
+    assert all(x["target"] != "C-01.frequency" for x in q)
+
+def test_same_rule_contradiction_recorded_once():
+    s = make()
+    c1 = {"kind": "person_vs_code", "statement_a": "notes or fax", "statement_b": "code reads notes", "rule_id": "PA-SCAN"}
+    c2 = {"kind": "person_vs_code", "statement_a": "I put it in the notes", "statement_b": "PA-SCAN reads notes", "rule_id": "PA-SCAN"}
+    s.apply_bookkeeping(BookResult([], [c1], [])); s.apply_bookkeeping(BookResult([], [c2], []))
+    assert len(s.state()["contradictions"]) == 1
