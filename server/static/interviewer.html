@@ -19,6 +19,10 @@
     .muted { color:var(--muted); }
     button { font:inherit; font-weight:500; min-height:52px; padding:12px 24px; border:1px solid var(--accent); border-radius:4px; cursor:pointer; background:var(--accent); color:var(--bg); }
     button:focus-visible, a:focus-visible { outline:3px solid var(--ink); outline-offset:4px; }
+    button:disabled { cursor:default; opacity:0.65; }
+    label { display:block; margin-bottom:8px; font-weight:500; }
+    select { display:block; font:inherit; max-width:100%; margin-bottom:20px; padding:10px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:4px; }
+    select:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
     #ask { width:100%; font-size:24px; }
     #queue { padding-left:26px; }
     output { display:block; margin-top:12px; overflow-wrap:anywhere; }
@@ -33,9 +37,18 @@
       <h1>Keep the conversation going.</h1>
       <p>Listen to the person. Tap the glasses when you’re ready for a question.</p>
       <p class="muted">Synthetic role-play only. Get the reader’s consent before transcription.</p>
+      <label for="interviewee">Interviewee</label>
+      <select id="interviewee">
+        <option value="billing_clerk_1">Billing clerk 1</option>
+        <option value="billing_clerk_2" selected>Billing clerk 2</option>
+        <option value="denial_specialist_1">Denial specialist 1</option>
+      </select>
       <button id="start" type="button">Start interview</button>
       <audio id="silence" src="/static/silence.mp3" loop preload="auto"></audio>
       <p id="status" role="status" aria-live="polite">Not started. Click Start interview to enable the glasses controls.</p>
+      <p id="connection-status" role="status" aria-live="polite">Connection: not started.</p>
+      <p id="recognition-status" role="status" aria-live="polite">Transcription: not started. Chrome’s microphone must be set to MacBook Microphone.</p>
+      <output id="last-final" aria-live="polite">No final sentence received yet.</output>
     </header>
     <section aria-labelledby="queue-heading">
       <h2 id="queue-heading">Questions</h2>

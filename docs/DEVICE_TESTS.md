@@ -137,3 +137,37 @@ After implementation:
 - Origin gate tags at handoff: `gate/G0-bootstrap`, `gate/D1-legacy`. `gate/E1-server` is absent, so C2's socket test and C3/C4's server-dependent work remain blocked on Prakrit (E).
 
 All four device tests passed according to Hrishi's reports; the original T2 failure and its recovery are retained. Devices are ready for the C1 gate review, but the required green-suite condition cannot be established while pytest collects no tests. Do not create or claim the integrator's gate tag from this branch.
+
+## C2: recognition and WebSocket integration
+
+**Manual Chrome speech check: PASS (operator-reported).** Hrishi selected “All C2 checks pass” in response to the integrated Chrome test: the spoken sentence appears within about 2 seconds, connected/listening statuses are present, and a fresh queue arrives in the Console with MacBook input / glasses output. Automated checks below are recorded separately. The C1 T1–T4 results above remain historical results.
+
+### Prerequisites and baseline
+
+- Fetched origin; `gate/C1-devices`, `gate/E1-server`, and `gate/E2-kb` now exist alongside bootstrap and D1. Merged `origin/main` into `client` at `72902b0` before C2 implementation.
+- The initial post-merge `pytest -q` failed during collection because the laptop's Python 3.12 environment lacked `anthropic`. The required host-access retry failed identically. Hrishi explicitly approved installing the declared dependencies in an isolated environment.
+- Created `/private/tmp/fit-check-client-venv` with Python 3.12, reusing existing system packages. Installed the unchanged `server/requirements.txt` into that environment. No requirements or system audio settings were changed.
+- Baseline `/private/tmp/fit-check-client-venv/bin/python -m pytest -q`: **36 passed**, with one third-party deprecation warning.
+- Wrote a temporary client-check harness before implementation. It failed as expected because recognition was not configured in C1. No test file outside Role C's ownership was added to the repo.
+
+### Automated results
+
+- `node --check server/static/interviewer.js`: PASS.
+- Temporary client harness: PASS for final-only sends, starting at `resultIndex`, trimming/ignoring blank results, timestamps relative to Start, suppression while `playing`, hello-before-buffered-message ordering, reconnect buffering, queue receipt, recognition restart, terminal microphone-permission handling, failed HTTP start cleanup/retry, and unsupported-recognition status.
+- Full Python suite after C2 implementation: **36 passed**, one third-party deprecation warning.
+- Final review sync: fetched origin again and merged `origin/main` at `842fcd3`, including W's events API and its tests. Full suite on the merged client branch: **58 passed**, one third-party deprecation warning. `gate/W2-events` now exists as well; `gate/E3-engine` is still absent at this check.
+- Replaced only the verified temporary C1 file-server process with the FastAPI server, bound to `127.0.0.1:8000`, with `LLM_PROVIDER=fake`. No paid model calls or microphone capture in the automated test.
+- Live integration using the actual client JavaScript, real HTTP/WebSocket transport, and synthetic recognition: **PASS**. `/interviewer` returned HTTP 200; `/start` succeeded; the server stored the synthetic final and sent a fresh fake queue in **1,073 ms** after the final event. Speech while `playing` was not stored. A real socket disconnect/reconnect delivered a buffered final exactly once.
+- Updated page controls and status lines visually inspected in the in-app browser. That preview was closed without starting media or microphone capture.
+
+### Manual C2 acceptance procedure
+
+1. Close the old C1 test tab so it cannot hold the microphone or media keys. Open Chrome at `http://localhost:8000/interviewer` (the FastAPI route).
+2. Keep Chrome's input set to MacBook Microphone and system output to the glasses. Stop and report any routing change or microphone error; do not use the glasses input.
+3. Choose Billing clerk 2 and click Start interview. Expect the silent loop, connected status, and listening status. Open the Console with Command–Option–J.
+4. With consent and synthetic role-play only, say: “If it needs prior auth I put the number in the notes.” Expect the final sentence on the page within about 2 seconds and a new `server` / `queue` message reflecting that final in the Console. An initial queue before speech is not proof of this check.
+5. Record the physical speech result here and in the C2 PR before calling C2 complete. C2 has no separate gate; its result feeds CP1. C3's completion gate additionally requires `gate/E3-engine` and a real-engine retest.
+
+| C2 check | Result | Notes |
+|---|---|---|
+| Real spoken sentence → final utterance → fresh fake queue in Chrome | PASS — operator-reported | Hrishi selected “All C2 checks pass” for the procedure above. Includes the approximately 2-second final, connected/listening statuses, and fresh fake queue in Chrome. No independent timing trace or raw transcript was supplied. |

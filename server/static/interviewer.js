@@ -1,3 +1,123 @@
+let T0 = Date.now();
+const now = () => Date.now() - T0;
+let lastFinalT = 0;
+let running = false;
+let playing = false; // C3 sets this while a question is playing.
+const INTERVIEW_ID = new URLSearchParams(location.search).get('id') || 'INT-01';
+let ws;
+const outbox = [];
+let reconnectTimer;
+let recognitionTimer;
+let recognitionActive = false;
+let recognitionRetryMs = 0;
+let starting = false;
+let sessionStarted = false;
+
+const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const rec = Recognition ? new Recognition() : null;
+
+if (rec) {
+  rec.continuous = true;
+  rec.interimResults = true;
+  rec.lang = 'en-US';
+  rec.onstart = () => {
+    recognitionActive = true;
+    document.getElementById('recognition-status').textContent = 'Transcription: listening.';
+  };
+  rec.onresult = (event) => {
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      if (!result.isFinal || playing) continue;
+      const text = result[0].transcript.trim();
+      if (!text) continue;
+      lastFinalT = now();
+      send({ type: 'utterance', text, final: true, t_ms: lastFinalT });
+      document.getElementById('last-final').textContent = text;
+    }
+  };
+  rec.onend = () => {
+    recognitionActive = false;
+    if (!running) return;
+    clearTimeout(recognitionTimer);
+    recognitionTimer = setTimeout(() => {
+      recognitionTimer = null;
+      if (running) startRecognition();
+    }, recognitionRetryMs);
+    recognitionRetryMs = 0;
+  };
+  rec.onerror = (event) => {
+    if (['not-allowed', 'service-not-allowed', 'audio-capture'].includes(event.error)) {
+      running = false;
+      clearTimeout(recognitionTimer);
+      document.getElementById('recognition-status').textContent =
+        'Transcription: microphone permission denied or input unavailable. Check Chrome’s MacBook microphone selection before reloading.';
+    } else if (event.error === 'network') {
+      recognitionRetryMs = 1000;
+      document.getElementById('recognition-status').textContent = 'Transcription: network error; retrying in one second.';
+    } else {
+      document.getElementById('recognition-status').textContent = `Transcription: ${event.error}; waiting to restart.`;
+    }
+    console.error('Recognition error:', event.error);
+  };
+}
+
+function startRecognition() {
+  if (!rec) {
+    document.getElementById('recognition-status').textContent = 'Transcription is unavailable. Open this page in Google Chrome.';
+    return;
+  }
+  running = true;
+  if (recognitionActive) return;
+  try {
+    rec.start();
+    recognitionActive = true;
+    document.getElementById('recognition-status').textContent = 'Transcription: starting…';
+  } catch (error) {
+    running = false;
+    document.getElementById('recognition-status').textContent = 'Transcription could not start. Check the microphone and reload.';
+    console.error('Recognition start failed:', error);
+  }
+}
+
+let onServer = (msg) => console.log('server', msg);
+
+function connect() {
+  if (ws && (ws.readyState === 0 || ws.readyState === 1)) return;
+  clearTimeout(reconnectTimer);
+  document.getElementById('connection-status').textContent = 'Connection: connecting…';
+  const socket = new WebSocket(`ws://localhost:8000/ws/client/${encodeURIComponent(INTERVIEW_ID)}`);
+  ws = socket;
+  socket.onopen = () => {
+    if (ws !== socket) return;
+    socket.send(JSON.stringify({ type: 'hello', device: 'laptop-chrome', app_version: '0.1' }));
+    while (outbox.length && socket.readyState === 1) socket.send(outbox.shift());
+    document.getElementById('connection-status').textContent = 'Connection: connected.';
+  };
+  socket.onmessage = (event) => {
+    if (ws !== socket) return;
+    try {
+      onServer(JSON.parse(event.data));
+    } catch (error) {
+      console.error('Server message could not be read:', error);
+    }
+  };
+  socket.onclose = () => {
+    if (ws !== socket) return;
+    document.getElementById('connection-status').textContent = 'Connection: disconnected; retrying in one second.';
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connect, 1000);
+  };
+  socket.onerror = () => {
+    if (ws === socket) document.getElementById('connection-status').textContent = 'Connection: error; waiting to reconnect.';
+  };
+}
+
+function send(obj) {
+  const message = JSON.stringify(obj);
+  if (ws && ws.readyState === 1) ws.send(message);
+  else outbox.push(message);
+}
+
 let onTap = (action) => {
   console.log('tap', action);
   document.getElementById('tap-output').textContent =
@@ -32,7 +152,50 @@ function startMediaKeys() {
   });
 }
 
-document.getElementById('start').onclick = () => startMediaKeys();
+document.getElementById('start').onclick = async () => {
+  if (starting || sessionStarted) return;
+  starting = true;
+  T0 = Date.now();
+  lastFinalT = 0;
+  outbox.length = 0;
+  const start = document.getElementById('start');
+  const interviewee = document.getElementById('interviewee');
+  start.disabled = true;
+  interviewee.disabled = true;
+  try {
+    // Keep audio and recognition inside the user gesture. Buffer finals until
+    // /start completes, so resetting the server cannot discard early speech.
+    startMediaKeys();
+    startRecognition();
+    document.getElementById('connection-status').textContent = 'Connection: starting interview…';
+    const response = await fetch(`/api/interviews/${encodeURIComponent(INTERVIEW_ID)}/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ interviewee: interviewee.value })
+    });
+    if (!response.ok) throw new Error(`Interview start returned HTTP ${response.status}`);
+    connect();
+    sessionStarted = true;
+    start.textContent = 'Interview started';
+  } catch (error) {
+    sessionStarted = false;
+    running = false;
+    clearTimeout(recognitionTimer);
+    if (rec) rec.stop();
+    recognitionActive = false;
+    outbox.length = 0;
+    document.getElementById('silence').pause();
+    if (navigator.mediaSession) navigator.mediaSession.playbackState = 'none';
+    document.getElementById('status').textContent = 'Silent loop stopped.';
+    document.getElementById('connection-status').textContent = 'Connection: interview could not start. Click Start interview to retry.';
+    document.getElementById('recognition-status').textContent = 'Transcription: stopped after interview setup failed.';
+    start.disabled = false;
+    interviewee.disabled = false;
+    console.error('Interview start failed:', error);
+  } finally {
+    starting = false;
+  }
+};
 document.getElementById('ask').onclick = () => onTap('play');
 document.addEventListener('keydown', (event) => {
   if (event.code !== 'Space' || event.repeat) return;
