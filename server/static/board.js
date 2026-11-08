@@ -16,6 +16,172 @@
   let controller;
   let pollTimer;
   let focusedLineage = "";
+  const charts = [];
+  let lastDrift;
+  let feedbackPayload;
+  let drawerGeneration = 0;
+  const settingsResource = { endpoint: "/api/settings", mock: "/static/mock/settings.json" };
+  function stateChip(state) {
+    const chip = element("span", (state || "not measured").replaceAll("_", " "), "status-chip state-" + (state || "not_measured"));
+    chip.dataset.state = state || "not_measured";
+    return chip;
+  }
+
+  function metricValue(value, unit) {
+    if (!Number.isFinite(value)) return "Not measured";
+    return unit === "share" ? percent(value) : Number(value.toFixed(2)).toLocaleString() + (unit === "seconds" ? " s" : " / week");
+  }
+
+  function monitoringOff() {
+    const panel = element("article", null, "panel evidence-panel monitoring-off");
+    panel.append(element("h3", "Drift monitoring is off for this client"));
+    const link = element("a", "Open Client settings", "text-link");
+    link.href = "#settings";
+    panel.append(link);
+    return panel;
+  }
+
+  function renderDrift(data) {
+    lastDrift = data;
+    charts.splice(0).forEach((chart) => chart.destroy());
+    const root = byId("drift-content");
+    root.replaceChildren();
+    if (!data.drift.enabled) { root.append(monitoringOff()); return; }
+    const contracts = data.drift.contracts || [];
+    const summary = element("article", null, "panel evidence-panel drift-summary");
+    summary.append(element("h3", "Contract status"), element("p", "Weeks 1–2 are learning weeks. Drift requires consecutive breaches after learning.", "muted-copy"));
+    const list = element("ul", null, "status-list");
+    for (const contract of contracts) {
+      const row = element("li");
+      const finding = data.findings.find((item) => item.contract_id === contract.contract_id);
+      const label = element(finding ? "a" : "span", contract.contract_id + " · " + (contract.requirement?.statement || "Behaviour contract"));
+      if (finding) label.href = "#finding/" + encodeURIComponent(finding.id);
+      row.append(label, stateChip(contract.status));
+      list.append(row);
+    }
+    if (!contracts.length) list.append(element("li", "No watched contracts. Choose contracts in Client settings.", "empty-copy"));
+    summary.append(list);
+    root.append(summary);
+    for (const contract of contracts) {
+      const expectation = contract.expectations?.[0];
+      const weeks = contract.weekly || [];
+      const panel = element("article", null, "panel evidence-panel chart-panel");
+      const heading = element("header", null, "panel-heading");
+      heading.append(element("h3", contract.contract_id + " · " + (expectation?.description || expectation?.metric_id || "Usage")), stateChip(contract.status));
+      panel.append(heading);
+      if (!expectation || !weeks.length) {
+        panel.append(element("p", "No weekly measurements available yet.", "empty-copy"));
+        root.append(panel); continue;
+      }
+      panel.append(element("p", "Target " + expectation.comparator + " " + metricValue(expectation.target, expectation.unit) + " · tolerance ± " + metricValue(expectation.tolerance, expectation.unit), "muted-copy"));
+      const wrap = element("div", null, "chart-wrap");
+      const canvas = element("canvas");
+      canvas.setAttribute("role", "img");
+      canvas.setAttribute("aria-label", contract.contract_id + " weekly usage, target and tolerance. Exact values in the table below.");
+      wrap.append(canvas); panel.append(wrap);
+      const notesMetric = contract.expectations.find((item) => item.metric_id === "pa_in_notes_rate");
+      if (contract.contract_id === "C-02") panel.append(element("p", "Week 5: single-week spike, not drift", "chart-note"));
+      const tableDetails = element("details", null, "weekly-values");
+      tableDetails.append(element("summary", "Weekly measurements"));
+      const table = element("table");
+      const header = element("tr");
+      ["Week", "Measured", ...(notesMetric ? ["Auth in notes"] : []), "State"].forEach((value) => header.append(element("th", value)));
+      const thead = element("thead"); thead.append(header); table.append(thead);
+      const tbody = element("tbody");
+      for (const week of weeks) {
+        const row = element("tr");
+        [week.week, metricValue(week.values?.[expectation.metric_id], expectation.unit), ...(notesMetric ? [metricValue(week.values?.[notesMetric.metric_id], "share")] : []), week.state?.replaceAll("_", " ")].forEach((value) => row.append(element("td", value)));
+        tbody.append(row);
+      }
+      table.append(tbody); tableDetails.append(table); panel.append(tableDetails); root.append(panel);
+      if (!window.Chart) {
+        wrap.replaceChildren(element("p", "Chart library unavailable. Weekly measurements remain available below.", "empty-copy"));
+        continue;
+      }
+      const band = weeks.map(() => expectation.target + expectation.tolerance);
+      const lower = weeks.map(() => Math.max(0, expectation.target - expectation.tolerance));
+      const datasets = [
+        { label: "Tolerance upper", data: band, borderWidth: 0, pointRadius: 0, backgroundColor: "rgba(15,110,110,0.10)" },
+        { label: "Tolerance band", data: lower, borderWidth: 0, pointRadius: 0, fill: { target: 0 }, backgroundColor: "rgba(15,110,110,0.10)" },
+        { label: "Target", data: weeks.map(() => expectation.target), borderColor: "#5B636A", borderDash: [5, 4], borderWidth: 1, pointRadius: 0 },
+        { label: expectation.description || expectation.metric_id, data: weeks.map((week) => week.values?.[expectation.metric_id] ?? null), borderColor: "#0F6E6E", backgroundColor: "#0F6E6E", borderWidth: 2, pointRadius: 3 }
+      ];
+      if (notesMetric) datasets.push({ label: "Auth number in notes", yAxisID: "notes", data: weeks.map((week) => week.values?.[notesMetric.metric_id] ?? null), borderColor: "#B7791F", borderWidth: 2, pointRadius: 3 });
+      const learning = { id: "learningWeeks", beforeDraw(chart) {
+        const { ctx, chartArea, scales } = chart;
+        if (!chartArea) return;
+        const count = weeks.filter((week) => week.week <= (contract.learning_period_weeks ?? 2)).length;
+        if (!count) return;
+        const right = count >= weeks.length ? chartArea.right : (scales.x.getPixelForValue(count - 1) + scales.x.getPixelForValue(count)) / 2;
+        ctx.save(); ctx.fillStyle = "rgba(91,99,106,0.10)"; ctx.fillRect(chartArea.left, chartArea.top, right - chartArea.left, chartArea.bottom - chartArea.top); ctx.restore();
+      } };
+      charts.push(new Chart(canvas, { type: "line", data: { labels: weeks.map((week) => "Week " + week.week), datasets }, plugins: [learning], options: {
+        animation: false, responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: "index" },
+        plugins: { legend: { labels: { filter: (item) => item.datasetIndex >= 2, boxWidth: 14 } }, tooltip: { filter: (item) => item.datasetIndex >= 2 } },
+        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ...(expectation.unit === "share" ? { max: 1, ticks: { callback: (value) => percent(value) } } : {}) }, ...(notesMetric ? { notes: { position: "right", min: 0, max: 1, grid: { drawOnChartArea: false }, ticks: { callback: (value) => percent(value) }, title: { display: true, text: "Auth in notes" } } } : {}) }
+      } }));
+    }
+  }
+
+  function renderFinding(data, id) {
+    const root = byId("finding-content");
+    root.replaceChildren();
+    if (!data.settings.drift_enabled) { root.append(monitoringOff()); return; }
+    const finding = data.findings.find((item) => item.id === (id || "F-01"));
+    if (!finding) { root.append(element("p", "This finding is not available. Return to Drift for current findings.", "empty-copy")); return; }
+    const layout = element("div", null, "finding-layout");
+    const detail = element("article", null, "panel evidence-panel");
+    const heading = element("header", null, "panel-heading");
+    heading.append(element("h3", finding.id + " · " + finding.contract_id, "id"), stateChip(finding.status));
+    detail.append(heading, element("h4", finding.requirement_statement || "Prior authorization is recorded in its own field.", "contract-title"));
+    detail.append(element("p", finding.explanation, "finding-explanation"));
+    detail.append(element("p", "Type: " + (finding.type || "unclassified").replaceAll("_", " "), "eyebrow"), element("p", finding.type_reason, "muted-copy"));
+    detail.append(element("p", "First breach: week " + finding.first_breach_week + " · severity " + finding.severity, "question-meta"));
+    const signals = element("ul", null, "expectation-list");
+    for (const signal of finding.related_signals || []) signals.append(element("li", signal.detector + ": " + percent(signal.from) + " → " + percent(signal.to)));
+    detail.append(signals);
+    const cost = element("aside", null, "panel evidence-panel");
+    cost.append(element("p", "ESTIMATED WEEKLY IMPACT", "eyebrow"), element("p", Number.isFinite(finding.cost_usd_per_week) ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(finding.cost_usd_per_week) : "Not estimated", "finding-cost"), element("p", "Demo value · synthetic costs, not a financial forecast.", "muted-copy"));
+    const button = element("button", "Preview Software Factory feedback", "primary-button"); button.type = "button";
+    button.addEventListener("click", () => openFeedback(finding, data.settings)); cost.append(button);
+    layout.append(detail, cost); root.append(layout);
+    const lineage = element("article", null, "panel evidence-panel lineage-chain");
+    lineage.append(element("h3", "Back to the interview"), element("p", [finding.contract_id, finding.lineage?.requirement_id, "Interview quote", finding.lineage?.question_id].filter(Boolean).join(" ← "), "id"));
+    if (finding.lineage) lineage.append(quote({ ...finding.lineage, question_origin: "ai" }));
+    root.append(lineage);
+  }
+
+  function selectFeedbackTab(name) {
+    document.querySelectorAll("[data-sf-tab]").forEach((tab) => {
+      const selected = tab.dataset.sfTab === name;
+      tab.setAttribute("aria-selected", String(selected)); tab.tabIndex = selected ? 0 : -1;
+      byId("sf-" + tab.dataset.sfTab + "-panel").hidden = !selected;
+    });
+  }
+
+  async function openFeedback(finding, settings) {
+    const version = ++drawerGeneration;
+    feedbackPayload = null;
+    byId("sf-file").disabled = true;
+    byId("sf-feedback-id").textContent = "FEEDBACK PREVIEW";
+    byId("sf-preview-title").textContent = finding.contract_id + " · Usage drift";
+    byId("sf-preview-content").textContent = finding.explanation;
+    byId("sf-result").textContent = "";
+    byId("sf-payload").textContent = "";
+    byId("sf-permission").textContent = settings.send_to_sf ? "This sends only to the local simulated feedback stub." : "Sending is off for this client. Enable Software Factory feedback in Client settings.";
+    selectFeedbackTab("landing");
+    byId("sf-drawer").showModal();
+    if (!settings.send_to_sf) return;
+    byId("sf-payload-loading").hidden = false;
+    try {
+      const payload = await requestData({ endpoint: "/api/findings/" + encodeURIComponent(finding.id) + "/sf-payload", mock: "/static/mock/sf-payload.json" }, AbortSignal.timeout(6000));
+      if (version !== drawerGeneration) return;
+      feedbackPayload = payload;
+      byId("sf-payload").textContent = JSON.stringify(payload, null, 2);
+      byId("sf-file").disabled = false;
+    } catch { if (version === drawerGeneration) byId("sf-result").textContent = "Could not load feedback. Check client permission and try again."; }
+    finally { if (version === drawerGeneration) byId("sf-payload-loading").hidden = true; }
+  }
 
   function element(tag, text, className) {
     const node = document.createElement(tag);
@@ -241,7 +407,7 @@
     const content = byId(route.name + "-content");
     const requestController = new AbortController();
     controller = requestController;
-    const firstLoad = !received.has(route.name);
+    const firstLoad = !received.has(route.name + ":" + route.detail);
     if (skeletons) skeletons.hidden = !firstLoad;
     if (firstLoad && message) message.textContent = "Loading evidence…";
     if (firstLoad) status.textContent = useMocks ? "Loading synthetic preview" : "Connecting to local server";
@@ -252,17 +418,22 @@
         const interview = await requestData(views.interview, requestController.signal).catch(() => null);
         data = { contracts: data, interview };
       }
+      if (route.name === "drift") data = { drift: data, findings: await requestData(views.finding, requestController.signal) };
+      if (route.name === "finding") data = { findings: data, settings: await requestData(settingsResource, requestController.signal) };
       if (currentGeneration !== generation) return;
       const serialized = JSON.stringify(data);
-      if (received.get(route.name) !== serialized) {
+      const cacheKey = route.name + ":" + route.detail;
+      if (received.get(cacheKey) !== serialized) {
         if (route.name === "interview") renderInterview(data);
         if (route.name === "contracts") renderContracts(data);
-        received.set(route.name, serialized);
+        if (route.name === "drift") renderDrift(data);
+        if (route.name === "finding") renderFinding(data, route.detail);
+        received.set(cacheKey, serialized);
       }
       if (skeletons) skeletons.hidden = true;
       if (content) content.hidden = false;
       status.textContent = useMocks ? "Showing synthetic preview data" : "Connected to local server";
-      if (message) message.textContent = route.name === "interview" ? "Interview state refreshes every second." : route.name === "contracts" ? "Synthetic interview evidence and contract targets." : "Data received. Evidence views will appear here.";
+      if (message) message.textContent = route.name === "interview" ? "Interview state refreshes every second." : route.name === "contracts" ? "Synthetic interview evidence and contract targets." : "Synthetic demonstration · client monitoring permissions apply.";
       focusLineage(route);
     } catch {
       if (currentGeneration !== generation) return;
@@ -277,6 +448,42 @@
   }
 
   window.addEventListener("hashchange", showRoute);
-  window.addEventListener("pagehide", () => { ++generation; clearTimeout(pollTimer); controller?.abort(); });
+  byId("chart-library").addEventListener("load", () => { if (lastDrift) renderDrift(lastDrift); });
+  byId("sf-close").addEventListener("click", () => byId("sf-drawer").close());
+  byId("sf-drawer").addEventListener("close", () => { ++drawerGeneration; feedbackPayload = null; byId("sf-payload-loading").hidden = true; });
+  const feedbackTabs = [...document.querySelectorAll("[data-sf-tab]")];
+  feedbackTabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => selectFeedbackTab(tab.dataset.sfTab));
+    tab.addEventListener("keydown", (event) => {
+      let next;
+      if (event.key === "ArrowRight") next = (index + 1) % feedbackTabs.length;
+      if (event.key === "ArrowLeft") next = (index + feedbackTabs.length - 1) % feedbackTabs.length;
+      if (event.key === "Home") next = 0;
+      if (event.key === "End") next = feedbackTabs.length - 1;
+      if (next != null) { event.preventDefault(); selectFeedbackTab(feedbackTabs[next].dataset.sfTab); feedbackTabs[next].focus(); }
+    });
+  });
+  byId("sf-file").addEventListener("click", async () => {
+    if (!feedbackPayload) return;
+    const version = drawerGeneration;
+    const payload = feedbackPayload;
+    byId("sf-file").disabled = true;
+    byId("sf-result").textContent = "Filing simulated feedback…";
+    try {
+      const response = await fetch(useMocks ? "/static/mock/sf-reply.json" : "/stub/v2/reporting-api/feedback", useMocks ? { signal: AbortSignal.timeout(6000) } : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(6000) });
+      if (!response.ok) throw new Error("Feedback unavailable");
+      const reply = await response.json();
+      if (!Number.isInteger(reply.feedback_number)) throw new Error("Invalid feedback response");
+      if (version !== drawerGeneration) return;
+      byId("sf-feedback-id").textContent = "FB-" + reply.feedback_number;
+      byId("sf-result").textContent = "FB-" + reply.feedback_number + " filed · Simulated, no live connection";
+      feedbackPayload = null;
+    } catch {
+      if (version !== drawerGeneration) return;
+      byId("sf-result").textContent = "Feedback was not confirmed. Check the local stub before retrying.";
+      byId("sf-file").disabled = false;
+    }
+  });
+  window.addEventListener("pagehide", () => { ++generation; clearTimeout(pollTimer); controller?.abort(); charts.splice(0).forEach((chart) => chart.destroy()); });
   showRoute();
 })();

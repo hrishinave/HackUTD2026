@@ -1,0 +1,18 @@
+[
+  {
+    "id": "F-01",
+    "contract_id": "C-01",
+    "metric_id": "pa_field_fill_rate",
+    "status": "broken",
+    "weekly": [{"week": 1, "value": 0.90, "state": "learning"}, {"week": 4, "value": 0.80, "state": "broken"}],
+    "first_breach_week": 4,
+    "early_warning": false,
+    "severity": 5.4,
+    "cost_usd_per_week": 15120,
+    "type": "app_gap",
+    "type_reason": "Dead clicks rose and tab views fell on the Authorization tab as the fill rate dropped",
+    "related_signals": [{"detector": "notes_pattern:auth_number", "from": 0.03, "to": 0.31}],
+    "lineage": {"requirement_id": "R-01", "quote": "If it needs prior auth I put the number in the notes...", "interview_id": "INT-01", "timestamp": "14:32", "question_id": "Q-12"},
+    "explanation": "Clerks have gone back to typing prior-auth numbers into notes, as in the legacy system. The field sits on a second tab that most clerks don't open."
+  }
+]

@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/board.css">
+  <script id="chart-library" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.6.1/chart.umd.min.js" integrity="sha512-vMRyUfXe50uUhhDC+fk6UYBA/1VPj+I7Jn+wK0A3+wSVeUgT9OCz/xoF2M8KFvrmUOlb4Anv0FQUw8NafuzYPw==" crossorigin="anonymous" referrerpolicy="no-referrer" async></script>
   <script src="/static/board.js" defer></script>
   <script src="/static/settings.js" defer></script>
 </head>
@@ -119,6 +120,7 @@
           <div aria-hidden="true" class="skeleton panel-skeleton"></div>
           <div aria-hidden="true" class="skeleton panel-skeleton"></div>
         </div>
+        <div id="drift-content" hidden></div>
         <p class="view-message" data-message="drift" role="status" aria-live="polite">Loading drift status…</p>
       </section>
 
@@ -135,6 +137,7 @@
         <div class="loading-grid" role="status" aria-label="Finding data loading">
           <div aria-hidden="true" class="skeleton panel-skeleton skeleton-wide"></div>
         </div>
+        <div id="finding-content" hidden></div>
         <p class="view-message" data-message="finding" role="status" aria-live="polite">Loading finding…</p>
       </section>
 
@@ -149,5 +152,20 @@
       </footer>
     </main>
   </div>
+  <dialog id="sf-drawer" class="sf-drawer" aria-labelledby="sf-title">
+    <header class="drawer-header"><div><p class="eyebrow">SOFTWARE FACTORY / FEEDBACK</p><h2 id="sf-title">From finding to feedback</h2></div><button id="sf-close" type="button" class="secondary-button">Close</button></header>
+    <p class="simulation-label">Simulated, no live connection</p>
+    <div class="drawer-tabs" role="tablist" aria-label="Software Factory feedback">
+      <button type="button" role="tab" id="sf-landing-tab" data-sf-tab="landing" aria-selected="true" aria-controls="sf-landing-panel">How it lands</button>
+      <button type="button" role="tab" id="sf-payload-tab" data-sf-tab="payload" aria-selected="false" aria-controls="sf-payload-panel" tabindex="-1">Payload</button>
+      <button type="button" role="tab" id="sf-fires-tab" data-sf-tab="fires" aria-selected="false" aria-controls="sf-fires-panel" tabindex="-1">What fires</button>
+    </div>
+    <div class="drawer-body">
+      <section id="sf-landing-panel" role="tabpanel" aria-labelledby="sf-landing-tab"><article class="panel evidence-panel"><p class="eyebrow" id="sf-feedback-id">FEEDBACK PREVIEW</p><h3 id="sf-preview-title">Usage drift finding</h3><p id="sf-preview-content" class="muted-copy"></p></article><p class="muted-copy">Their Triage Feedback automation takes it from here: assigns the feature, matches a Theme, extracts the quote.</p></section>
+      <section id="sf-payload-panel" role="tabpanel" aria-labelledby="sf-payload-tab" hidden><p class="id endpoint-label">POST /v2/reporting-api/feedback</p><div id="sf-payload-loading" class="skeleton drawer-skeleton" hidden aria-label="Loading feedback payload"></div><pre id="sf-payload" class="payload"></pre></section>
+      <section id="sf-fires-panel" role="tabpanel" aria-labelledby="sf-fires-tab" hidden><ol class="automation-list"><li>Feedback Created</li><li>Triage Feedback</li><li>Theme</li><li>Human review → Work Order</li></ol><p class="muted-copy">A person decides what to ship. This demonstration never modifies the client application.</p></section>
+    </div>
+    <footer class="drawer-footer"><p id="sf-permission" class="muted-copy"></p><button id="sf-file" type="button" class="primary-button" disabled>File to Software Factory (simulated)</button><p id="sf-result" class="view-message" role="status" aria-live="polite"></p></footer>
+  </dialog>
 </body>
 </html>

@@ -1,0 +1,9 @@
+{
+  "drift_enabled": true,
+  "contracts_watched": ["C-01", "C-02", "C-03", "C-04", "C-05"],
+  "notes_matching": true,
+  "send_to_sf": true,
+  "retention_days": 30,
+  "admin": "Practice manager",
+  "audit": []
+}

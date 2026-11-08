@@ -1,0 +1,4 @@
+{
+  "end_user_email": "usage-drift@fitcheck.invalid",
+  "content": "**Usage drift: R-01 Prior-auth number recorded in its own field**\n\nContract C-01 broken since week 4 (fill rate 0.95 expected, 0.50 observed in week 8; billing clerks, 8 people).\nRelated: auth numbers in notes rose from 3% to 31%.\nLikely type: app gap (field on second tab; dead clicks on Authorization tab).\nEstimated $15,120/week of claims at risk (demo value).\nOrigin: Billing clerk 2, INT-01 14:32, answer to AI question Q-12.\nSimulated data."
+}
