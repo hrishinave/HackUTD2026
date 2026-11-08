@@ -10,6 +10,7 @@
   let selectedInterview = "";
   let selectedPerson = "billing_clerk_2";
   let selectedCompany = "medicare_billing_demo";
+  let selectedCompanyName = "";
   const byId = (id) => document.getElementById(id);
   const title = byId("page-title");
   const status = byId("connection-status");
@@ -53,7 +54,7 @@
       }
       for (const interview of interviews) {
         const identity = interview.person_name || interview.label || interview.interviewee || "Interview";
-        const option = element("option", interview.interview_id + " · " + identity + (interview.position ? " · " + interview.position : ""));
+        const option = element("option", interview.interview_id + " · " + (interview.company_name ? interview.company_name + " · " : "") + identity + (interview.position ? " · " + interview.position : ""));
         option.value = interview.interview_id;
         picker.append(option);
       }
@@ -70,13 +71,20 @@
       const response = await fetch(useMocks ? "/static/mock/interview-options.json" : "/api/interview-options", { cache: "no-store" });
       if (!response.ok) throw new Error("Interview options unavailable");
       const data = await response.json();
-      companyPicker.replaceChildren(...(data.companies || []).map((company) => {
-        const option = element("option", company.name); option.value = company.id; return option;
+      const options = byId("company-options");
+      options.replaceChildren(...(data.companies || []).map((company) => {
+        const option = element("option"); option.value = company.name; option.dataset.companyId = company.id; return option;
       }));
-      companyPicker.value = selectedCompany;
-      companyPicker.addEventListener("change", () => { selectedCompany = companyPicker.value; });
+      const existing = (data.companies || []).find((company) => company.id === selectedCompany);
+      companyPicker.value = selectedCompanyName || existing?.name || "";
+      selectedCompanyName = companyPicker.value;
+      companyPicker.addEventListener("input", () => {
+        selectedCompanyName = companyPicker.value.trim();
+        const match = (data.companies || []).find((company) => company.name.toLowerCase() === selectedCompanyName.toLowerCase());
+        selectedCompany = match?.id || selectedCompanyName.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "new_client";
+      });
     } catch {
-      companyPicker.replaceChildren(element("option", "Could not load companies"));
+      companyPicker.placeholder = "Enter a new company name";
       byId("person-name").placeholder = "Enter person's name";
     }
   }
@@ -88,8 +96,9 @@
     try {
       const personName = byId("person-name").value.trim();
       const personPosition = byId("person-position").value.trim();
-      if (!personName || !personPosition) throw new Error("Enter the person's name and position before starting");
-      const response = await fetch("/api/interviews/" + next + "/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ interviewee: selectedPerson, company_id: selectedCompany, person_name: personName, position: personPosition }) });
+      selectedCompanyName = byId("company-picker").value.trim();
+      if (!selectedCompanyName || !personName || !personPosition) throw new Error("Enter the company, person's name, and position before starting");
+      const response = await fetch("/api/interviews/" + next + "/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ interviewee: selectedPerson, company_id: selectedCompany, company_name: selectedCompanyName, person_name: personName, position: personPosition }) });
       if (!response.ok) throw new Error("Could not start the interview");
       selectedInterview = next;
       await loadInterviewList();

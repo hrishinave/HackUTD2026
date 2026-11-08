@@ -28,6 +28,7 @@ class InterviewSession:
         self.person_name = ""
         self.position = ""
         self.company_id = "medicare_billing_demo"
+        self.company_name = "Medicare Billing Office"
         self.brief = brief
         self.bank = bank
         person = kb.load_people().get(interviewee, {})
@@ -191,7 +192,7 @@ class InterviewSession:
 
     # --- persistence --------------------------------------------------------------
 
-    _FIELDS = ("interviewee", "person_name", "position", "company_id", "label", "plan", "relevant_contracts", "slot_ids", "transcript", "last_utterance_t",
+    _FIELDS = ("interviewee", "person_name", "position", "company_id", "company_name", "label", "plan", "relevant_contracts", "slot_ids", "transcript", "last_utterance_t",
                "last_called_t", "q_counter", "plan_index", "questions", "queue", "based_on_t_ms", "played",
                "slot_fills", "contradictions")
 
@@ -233,6 +234,7 @@ class InterviewSession:
             "person_name": self.person_name,
             "position": self.position,
             "company_id": self.company_id,
+            "company_name": self.company_name,
             "label": self.label,
             "transcript": list(self.transcript),
             "queue": list(self.queue),

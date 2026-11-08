@@ -53,7 +53,7 @@
             <h2>Interview evidence</h2>
             <p>Follow how answers connect to requirements and the questions that surfaced them.</p>
           </div>
-          <div class="interview-actions"><select id="company-picker" aria-label="Client company"><option value="">Loading client companies…</option></select><input id="person-name" aria-label="Person name" placeholder="Person's name" autocomplete="off"><input id="person-position" aria-label="Person position" placeholder="Position at company" autocomplete="organization-title"><button id="start-interview" type="button" class="primary-button">Start new interview</button><select id="interview-picker" aria-label="Previous interviews"><option value="">Loading previous interviews…</option></select></div>
+          <div class="interview-actions"><label class="visually-hidden" for="company-picker">Client company</label><input id="company-picker" list="company-options" aria-label="Client company" placeholder="Search or enter a company" autocomplete="organization"><datalist id="company-options"></datalist><input id="person-name" aria-label="Person name" placeholder="Person's name" autocomplete="off"><input id="person-position" aria-label="Position at company" placeholder="Position at company" autocomplete="organization-title"><button id="start-interview" type="button" class="primary-button">Start new interview</button><select id="interview-picker" aria-label="Previous interviews"><option value="">Loading previous interviews…</option></select></div>
         </div>
         <div class="loading-grid" role="status" aria-label="Interview data loading">
           <div aria-hidden="true" class="skeleton panel-skeleton skeleton-wide"></div>

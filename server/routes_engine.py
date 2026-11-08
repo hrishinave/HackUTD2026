@@ -323,6 +323,8 @@ async def start_interview(interview_id: str, body: dict = Body(default={})):
     if position:
         runner.session.position = position
     runner.session.company_id = str(body.get("company_id", "medicare_billing_demo"))
+    if str(body.get("company_name", "")).strip():
+        runner.session.company_name = str(body["company_name"]).strip()
     warm = "ok"
     try:
         await llm.warm_up(runner.session.brief)
