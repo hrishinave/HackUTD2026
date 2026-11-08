@@ -354,3 +354,52 @@ code,
 .document p, .document li { color: var(--muted); font-size: 15px; line-height: 1.7; }
 .document a { color: var(--accent); text-underline-offset: 3px; }
 .document-footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); }
+
+.interview-stats { display: flex; flex-wrap: wrap; gap: 20px 48px; margin: 0 0 26px; padding: 0 0 22px; border-bottom: 1px solid var(--line); }
+.interview-stats dt { color: var(--muted); font-size: 12px; }
+.interview-stats dd { margin: 6px 0 0; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 24px; }
+.interview-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.interview-sidebar, .evidence-list { display: grid; gap: 20px; min-width: 0; }
+.evidence-panel { padding: 22px; min-width: 0; overflow-wrap: anywhere; }
+.panel-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.panel-heading h3 { margin: 0; font-size: 16px; font-weight: 600; }
+.panel-heading .id { color: var(--muted); font-size: 11px; }
+.transcript-lines, .question-queue { list-style: none; margin: 0; padding: 0; }
+.transcript-lines { max-height: 680px; overflow-y: auto; scrollbar-gutter: stable; }
+.transcript-lines li { padding: 14px 0; border-top: 1px solid var(--line); }
+.transcript-lines li:first-child, .question-queue li:first-child { border-top: 0; padding-top: 0; }
+.transcript-lines time { font-family: "IBM Plex Mono", ui-monospace, monospace; color: var(--muted); font-size: 11px; }
+.transcript-lines p { margin: 7px 0 0; font-size: 14px; line-height: 1.65; white-space: pre-wrap; }
+.played-marker { color: var(--accent); font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; }
+.question-queue li { padding: 16px 0; border-top: 1px solid var(--line); }
+.question-queue p { margin: 7px 0; font-size: 15px; line-height: 1.5; }
+.queue-cue { color: var(--accent); font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; }
+.question-meta, .muted-copy, .empty-copy { color: var(--muted); font-size: 12px; line-height: 1.65; }
+.question-meta { display: block; margin-top: 6px; }
+.slot-contract + .slot-contract { margin-top: 22px; }
+.slot-contract h4 { margin: 0 0 10px; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; font-weight: 500; }
+.slot-row { padding: 12px 0; border-top: 1px solid var(--line); }
+.slot-label { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.slot-label code { font-size: 12px; }
+.question-badge, .confidence-chip { display: inline-block; padding: 3px 6px; border: 1px solid var(--line); border-radius: var(--radius); font-size: 11px; }
+.question-badge { font-family: "IBM Plex Mono", ui-monospace, monospace; text-decoration: none; white-space: nowrap; }
+.question-badge[data-origin="ai"] { border-color: var(--accent); color: var(--accent); }
+.evidence-quote { margin: 14px 0; padding-left: 14px; border-left: 2px solid var(--line); }
+.evidence-quote blockquote { margin: 0; font-size: 14px; line-height: 1.65; white-space: pre-wrap; }
+.evidence-quote figcaption { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin-top: 8px; font-size: 11px; line-height: 1.6; color: var(--muted); }
+.contract-title { margin: 0 0 12px; font-size: 18px; font-weight: 500; line-height: 1.5; }
+.contract-meta, .confidence-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 12px 0; font-size: 12px; color: var(--muted); }
+.confidence-chip[data-confirmed="true"] { color: var(--ink); }
+.expectation-list { margin: 18px 0; padding: 0; list-style: none; }
+.expectation-list li { padding: 12px 0; border-top: 1px solid var(--line); }
+.expectation-list code { display: block; margin-top: 6px; font-size: 12px; color: var(--ink); }
+.expectation-list p { margin: 0; font-size: 13px; line-height: 1.6; }
+.contract-shape summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.contract-shape pre { overflow-x: auto; padding: 12px; border: 1px solid var(--line); font-size: 11px; line-height: 1.6; }
+.open-loops { margin: 24px 0; }
+.open-loops h4 { margin: 0; font-size: 16px; font-weight: 500; }
+.contradiction-item + .contradiction-item { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.contradiction-item blockquote { margin: 8px 0; font-size: 14px; line-height: 1.6; }
+.lineage-target { outline: 2px solid var(--accent); outline-offset: 4px; }
+@media (max-width: 1050px) { .interview-layout { grid-template-columns: 1fr; } }
+@media (max-width: 520px) { .evidence-panel { padding: 16px; } .interview-stats { gap: 18px 24px; } .panel-heading { flex-wrap: wrap; } }

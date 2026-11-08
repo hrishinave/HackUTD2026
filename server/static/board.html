@@ -15,7 +15,7 @@
 <body>
   <div class="app-shell">
     <aside class="rail" aria-label="Board navigation">
-      <a class="brand" href="/board#interview" aria-label="Fit Check evidence board">
+      <a class="brand" href="#interview" aria-label="Fit Check evidence board">
         <span class="brand-mark" aria-hidden="true">FC</span>
         <span><strong>Fit Check</strong><small>Evidence board</small></span>
       </a>
@@ -59,6 +59,23 @@
           <div aria-hidden="true" class="skeleton panel-skeleton"></div>
           <div aria-hidden="true" class="skeleton panel-skeleton"></div>
         </div>
+        <div id="interview-content" hidden>
+          <dl class="interview-stats" aria-label="Interview outcomes">
+            <div><dt>Contract coverage</dt><dd id="coverage-stat">—</dd></div>
+            <div><dt>AI-question yield</dt><dd id="yield-stat">—</dd></div>
+            <div><dt>Fields from AI questions</dt><dd id="ai-fields-stat">—</dd></div>
+          </dl>
+          <div class="interview-layout">
+            <article class="panel evidence-panel">
+              <header class="panel-heading"><h3>Transcript</h3><span id="interview-label" class="id"></span></header>
+              <ol id="transcript-lines" class="transcript-lines" aria-label="Transcript and played questions"></ol>
+            </article>
+            <div class="interview-sidebar">
+              <article class="panel evidence-panel"><header class="panel-heading"><h3>Next questions</h3><span class="eyebrow">QUEUE OF 3</span></header><ol id="question-queue" class="question-queue"></ol></article>
+              <article class="panel evidence-panel"><header class="panel-heading"><h3>Contract slots</h3><span id="slot-summary" class="eyebrow"></span></header><div id="slot-grid"></div></article>
+            </div>
+          </div>
+        </div>
         <p class="view-message" data-message="interview" role="status" aria-live="polite">Loading interview evidence…</p>
       </section>
 
@@ -74,6 +91,17 @@
         <div class="loading-grid" role="status" aria-label="Contract data loading">
           <div aria-hidden="true" class="skeleton panel-skeleton"></div>
           <div aria-hidden="true" class="skeleton panel-skeleton"></div>
+        </div>
+        <div id="contracts-content" hidden>
+          <div id="contracts-list" class="evidence-list"></div>
+          <article class="panel evidence-panel open-loops" aria-labelledby="open-loops-title">
+            <header class="panel-heading"><h3 id="open-loops-title">Open loops</h3><span class="id">R-06</span></header>
+            <h4>Clerks trust that claim totals are correct before submitting.</h4>
+            <p class="muted-copy">Trust leaves no direct footprint in usage data, so no machine check is possible. This requirement needs human QA.</p>
+            <figure class="evidence-quote"><blockquote>I always add it up on a calculator anyway.</blockquote><figcaption>Billing clerk 1 · INT-02 · 12:18 · Unprompted</figcaption></figure>
+            <p class="muted-copy">Next step: raise this in 8090’s post-launch user conversations.</p>
+          </article>
+          <article class="panel evidence-panel"><header class="panel-heading"><h3>Contradictions</h3></header><div id="contradictions-list"></div></article>
         </div>
         <p class="view-message" data-message="contracts" role="status" aria-live="polite">Loading contracts…</p>
       </section>
