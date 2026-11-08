@@ -7,6 +7,7 @@
     settings: { title: "Client settings" }
   };
   const useMocks = new URLSearchParams(window.location.search).get("mock") === "1";
+  let selectedInterview = "INT-01";
   const byId = (id) => document.getElementById(id);
   const title = byId("page-title");
   const status = byId("connection-status");
@@ -30,6 +31,51 @@
   let draftBusy = false;
   let decisionBusy = false;
   const dialogResolvers = new Map();
+
+  function interviewConfig() {
+    return { title: "Interview", endpoint: "/api/interviews/" + encodeURIComponent(selectedInterview) + "/state", mock: "/static/mock/state.json" };
+  }
+
+  async function loadInterviewList() {
+    const picker = byId("interview-picker");
+    if (!picker) return;
+    try {
+      const response = await fetch(useMocks ? "/static/mock/interviews.json" : "/api/interviews", { cache: "no-store" });
+      if (!response.ok) throw new Error("Interview list unavailable");
+      const interviews = await response.json();
+      picker.replaceChildren();
+      if (!interviews.length) {
+        picker.append(element("option", "No previous interviews"));
+        picker.disabled = true;
+        return;
+      }
+      for (const interview of interviews) {
+        const option = element("option", interview.interview_id + " · " + (interview.label || interview.interviewee || "Interview"));
+        option.value = interview.interview_id;
+        picker.append(option);
+      }
+      if (!interviews.some((item) => item.interview_id === selectedInterview)) selectedInterview = interviews[0].interview_id;
+      picker.value = selectedInterview;
+      if (currentRoute().name === "interview") showRoute();
+    } catch { picker.replaceChildren(element("option", "Could not load previous interviews")); }
+  }
+
+  async function startNewInterview() {
+    const button = byId("start-interview");
+    button.disabled = true;
+    const next = "INT-" + String(Date.now()).slice(-2);
+    try {
+      const response = await fetch("/api/interviews/" + next + "/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ interviewee: "billing_clerk_2" }) });
+      if (!response.ok) throw new Error("Could not start the interview");
+      selectedInterview = next;
+      await loadInterviewList();
+      byId("interview-picker").value = selectedInterview;
+      showRoute();
+    } catch (error) {
+      const message = document.querySelector('[data-message="interview"]');
+      if (message) message.textContent = error.message;
+    } finally { button.disabled = false; }
+  }
 
   function draftInterview(record) { return /^DR-(INT-\d{2})-\d+$/.exec(record.draft_id || "")?.[1] || "Unknown interview"; }
 
@@ -137,7 +183,7 @@
   }
 
   async function refreshDecisions() {
-    const [records, contracts, interview] = await Promise.all([readDrafts(AbortSignal.timeout(10000)), requestData(views.contracts, AbortSignal.timeout(10000)), requestData(views.interview, AbortSignal.timeout(6000)).catch(() => null)]);
+    const [records, contracts, interview] = await Promise.all([readDrafts(AbortSignal.timeout(10000)), requestData(views.contracts, AbortSignal.timeout(10000)), requestData(interviewConfig(), AbortSignal.timeout(6000)).catch(() => null)]);
     draftRecords = records;
     renderContracts({ contracts, interview });
     renderDrafts();
@@ -620,7 +666,7 @@
       if (route.name === "contracts") {
         try { draftRecords = await readDrafts(requestController.signal); }
         catch { byId("draft-message").textContent = "Draft records unavailable. Earlier contract evidence is still shown."; }
-        const interview = await requestData(views.interview, requestController.signal).catch(() => null);
+        const interview = await requestData(interviewConfig(), requestController.signal).catch(() => null);
         data = { contracts: data, interview, drafts: draftRecords };
       }
       if (route.name === "drift") data = { drift: data, findings: await requestData(views.finding, requestController.signal) };
@@ -662,6 +708,8 @@
 
   window.addEventListener("hashchange", showRoute);
   byId("draft-interview").value = useMocks ? "INT-01" : "INT-02";
+  byId("start-interview")?.addEventListener("click", startNewInterview);
+  byId("interview-picker")?.addEventListener("change", (event) => { selectedInterview = event.target.value; showRoute(); });
   byId("draft-interview").addEventListener("change", () => { byId("draft-message").textContent = ""; renderDrafts(); });
   byId("draft-run").addEventListener("click", runDrafts);
   function finishDialog(id, value) {
@@ -719,6 +767,7 @@
       byId("sf-file").disabled = false;
     }
   });
+  loadInterviewList();
   window.addEventListener("pagehide", () => { ++generation; clearTimeout(pollTimer); controller?.abort(); charts.splice(0).forEach((chart) => chart.destroy()); });
   showRoute();
 })();

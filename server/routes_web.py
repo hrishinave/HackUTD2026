@@ -23,6 +23,41 @@ ENVELOPE = set(CATALOG["envelope"]) | {"week"}
 _file_lock = Lock()
 
 
+@router.get("/api/interviews")
+def interviews():
+    """List saved and currently running interviews for the board selector."""
+    state_dir = ROOT / "data" / "state"
+    saved = {}
+    if state_dir.is_dir():
+        for path in state_dir.glob("INT-*.json"):
+            try:
+                raw = json.loads(path.read_text(encoding="utf-8"))
+                state = raw.get("state", raw)
+                saved[path.stem] = {
+                    "interview_id": path.stem,
+                    "label": state.get("label") or state.get("interviewee") or path.stem,
+                    "interviewee": state.get("interviewee", ""),
+                    "started": True,
+                    "updated_at": path.stat().st_mtime,
+                }
+            except (OSError, ValueError, TypeError):
+                continue
+    try:
+        from server import routes_engine
+        for interview_id, runner in routes_engine.sessions.items():
+            state = runner.session.state()
+            saved[interview_id] = {
+                "interview_id": interview_id,
+                "label": state.get("label") or state.get("interviewee") or interview_id,
+                "interviewee": state.get("interviewee", ""),
+                "started": True,
+                "updated_at": None,
+            }
+    except Exception:
+        pass
+    return sorted(saved.values(), key=lambda item: item["interview_id"])
+
+
 @router.get("/claim", response_class=HTMLResponse)
 def claim():
     token = os.environ.get("CLIENT_WRITE_TOKEN")

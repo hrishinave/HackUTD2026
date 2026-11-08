@@ -405,6 +405,8 @@ code,
 @media (max-width: 520px) { .evidence-panel { padding: 16px; } .interview-stats { gap: 18px 24px; } .panel-heading { flex-wrap: wrap; } }
 
 .primary-button, .secondary-button { padding: 10px 14px; border: 1px solid var(--accent); border-radius: var(--radius); font: inherit; font-size: 13px; cursor: pointer; }
+.interview-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.interview-actions select { max-width: 240px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); color: var(--ink); font: inherit; font-size: 13px; }
 .primary-button { color: var(--panel); background: var(--accent); }
 .secondary-button { color: var(--ink); background: var(--panel); border-color: var(--line); }
 button:disabled { cursor: default; opacity: .55; }

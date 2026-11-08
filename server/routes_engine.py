@@ -424,11 +424,6 @@ def _page(name: str) -> FileResponse:
     return FileResponse(path)
 
 
-@router.get("/interviewer")
-def page_interviewer():
-    return _page("interviewer")
-
-
 @router.get("/board")
 def page_board():
     return _page("board")
