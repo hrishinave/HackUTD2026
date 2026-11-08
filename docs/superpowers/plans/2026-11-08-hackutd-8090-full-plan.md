@@ -1,4 +1,4 @@
-# Fit Check (Interview-to-Drift Tool for 8090): Full Plan
+# Pact (Interview-to-Drift Tool for 8090): Full Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -10,7 +10,7 @@
 
 **Tech Stack:** Python 3.12, FastAPI, uvicorn, httpx, pytest, jsonschema, Anthropic Python SDK (`claude-haiku-5-5`); plain HTML/CSS/JavaScript in Chrome (Web Speech API, Media Session API, HTML audio, `speechSynthesis` fallback); Chart.js for charts; ElevenLabs free tier for voice; COBOL source file (read by the agent, not compiled).
 
-**Working name:** "Fit Check" (placeholder, rename freely). Tagline: *Software Factory checks code against requirements. We check requirements against people.*
+**Name:** "Pact". Tagline: *Software Factory checks code against requirements. We check requirements against people.*
 
 ## Global Constraints
 
@@ -323,7 +323,7 @@ The button "File to Software Factory (simulated)" posts the payload to our local
 **Feedback payload (documented shape):**
 ```json
 {
-  "end_user_email": "usage-drift@fitcheck.invalid",
+  "end_user_email": "usage-drift@pact.invalid",
   "content": "**Usage drift: R-01 Prior-auth number recorded in its own field**\n\nContract C-01 broken since week 4 (fill rate 0.95 expected, 0.50 observed in week 8; billing clerks, 8 people).\nRelated: auth numbers in notes rose from 3% to 31%.\nLikely type: app gap (field on second tab; dead clicks on Authorization tab).\nEstimated $15,120/week of claims at risk (demo value).\nOrigin: Billing clerk 2, INT-01 14:32, answer to AI question Q-12.\nSimulated data."
 }
 ```
@@ -697,7 +697,7 @@ function startMediaKeys() {
   const s = document.getElementById('silence');
   s.volume = 0.01;                       // near-silent but "playing", so Chrome owns the media keys
   s.play();
-  navigator.mediaSession.metadata = new MediaMetadata({ title: 'Fit Check interview' });
+  navigator.mediaSession.metadata = new MediaMetadata({ title: 'Pact interview' });
   navigator.mediaSession.playbackState = 'playing';
   navigator.mediaSession.setActionHandler('play', () => onTap('play'));
   navigator.mediaSession.setActionHandler('pause', () => onTap('play'));
@@ -866,7 +866,7 @@ from server import routes_engine, routes_data, routes_web
 load_dotenv()
 for d in ["data", "data/clips", "data/state"]:
     os.makedirs(d, exist_ok=True)
-app = FastAPI(title="Fit Check")
+app = FastAPI(title="Pact")
 app.mount("/static", StaticFiles(directory="server/static"), name="static")
 app.include_router(routes_engine.router)
 app.include_router(routes_data.router)
@@ -1352,7 +1352,7 @@ def test_content_under_limit():
 - [ ] **Step 2:** Run: FAIL.
 - [ ] **Step 3: Implement.**
   - **`feedback.py`:**
-    - `build_payload` writes the section 9 content from the finding (requirement statement, status, weeks, type, cost, lineage, "Simulated data.") with `end_user_email = "usage-drift@fitcheck.invalid"`.
+    - `build_payload` writes the section 9 content from the finding (requirement statement, status, weeks, type, cost, lineage, "Simulated data.") with `end_user_email = "usage-drift@pact.invalid"`.
     - `validate_payload` allows only `end_user_email`, `content` and `attachments`, requires a non-blank `content` of at most 20,000 characters, and requires `file_name`, `file_key`, `file_size` and `mime_type` on each attachment.
   - **Stub route:** `POST /stub/v2/reporting-api/feedback` returns 422 with the errors, else `{"feedback_number": n}` counting from 123.
   - **Payload route:** `GET /api/findings/{id}/sf-payload` returns 403 when `load_settings()["send_to_sf"]` is false, 404 for an unknown finding, else `build_payload(finding)`.
