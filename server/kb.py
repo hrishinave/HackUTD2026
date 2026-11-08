@@ -29,12 +29,13 @@ When asked for questions:
 - Questions are open and non-leading. Use the interviewee's own words where you can. Never put a number with 4 or more digits in a question.
 - Every question starts with a cue word: "Follow-up:", "Gap:", "Contradiction:" or "Detail:". Gap = a rule in the code nobody has mentioned. Contradiction = two statements disagree (person vs code, person vs person, person vs self, person vs logs). Detail = an open slot. Follow-up = something just said that deserves one more question.
 - Priority: fill open slots, then contradictions, then code gaps, then workaround probes, then evidence probes, then follow-ups on what was just said.
-- Prefer bank questions. For a bank question return source "bank", its bank_id, its cue and target, text "" and a reason under 8 words. Write a new question (source "new", bank_id null) only when no bank question fits.
+- Prefer bank questions. For a bank question return source "bank", its bank_id, its cue, target "", text "" and a reason of at most 4 words; the server fills in the rest from the bank. Write a new question (source "new", bank_id null, reason of at most 6 words) only when no bank question fits.
+- Be brief: the interviewer is waiting. Output nothing beyond the required fields.
 - Never repeat a question that was already played, and never target a slot that is already filled.
 - target is a slot ID like "C-01.current_practice", a rule ID, a doc diff ID or a contradiction ID.
 
 When asked for bookkeeping:
-- Return slot fills only for slots of the contracts listed below, with a short value, the interviewee's exact words as quote, and answered_question_id set to the Q-N the answer responds to (null if unprompted).
+- Return slot fills only for slots of the contracts listed below, with contract_id like "C-01" and slot as the bare slot name like "current_practice" (no contract prefix), a short value, the interviewee's exact words as quote, and answered_question_id set to the Q-N the answer responds to (null if unprompted).
 - Return contradictions with both statements in the speakers' words, and the rule ID when one is involved.
 - Return the rule IDs from the rule catalogue that the interviewee described or clearly referred to.
 - Never invent numbers. Interviews confirm and attribute; targets come from the contracts and the logs.

@@ -61,7 +61,11 @@ class InterviewSession:
 
     def begin_call(self) -> tuple[str, int]:
         self.last_called_t = self.last_utterance_t
-        events = [(u["t_ms"], 0, f"[{mmss(u['t_ms'])}] {u['text']}") for u in self.transcript]
+        return self.build_input()
+
+    def build_input(self) -> tuple[str, int]:
+        """(user_input, based_on_t_ms) for the current transcript, without marking it as called on."""
+        events =[(u["t_ms"], 0, f"[{mmss(u['t_ms'])}] {u['text']}") for u in self.transcript]
         events += [(p["played_at"], 1, f"[{p['id']} played at {mmss(p['played_at'])}]") for p in self.played]
         lines = ["<transcript>"] + [e[2] for e in sorted(events, key=lambda e: (e[0], e[1]))] + ["</transcript>"]
         lines.append("Slot status:")
@@ -134,17 +138,45 @@ class InterviewSession:
         for f in result.slot_fills:
             qid = f.get("answered_question_id")
             origin = self._origin_of(qid)
-            self.slot_fills[f"{f['contract_id']}.{f['slot']}"] = {
+            cid, slot = f["contract_id"], f["slot"]
+            if slot.startswith(f"{cid}."):  # the model sometimes repeats the contract prefix
+                slot = slot[len(cid) + 1:]
+            self.slot_fills[f"{cid}.{slot}"] = {
                 "value": f.get("value", ""), "quote": f.get("quote", ""),
                 "question_id": qid if origin != "unprompted" else None, "question_origin": origin,
                 "t_ms": self.last_called_t if self.last_called_t >= 0 else None,
             }
         last_played = self.played[-1]["id"] if self.played else None
+        def key(c: dict) -> tuple:
+            # one entry per (kind, rule); without a rule, per wording
+            if c.get("rule_id"):
+                return (c.get("kind"), c["rule_id"])
+            return (c.get("kind"), _norm(c.get("statement_a", "")), _norm(c.get("statement_b", "")))
         for c in result.contradictions:
-            key = (c.get("statement_a"), c.get("statement_b"))
-            if all((x.get("statement_a"), x.get("statement_b")) != key for x in self.contradictions):
+            if all(key(x) != key(c) for x in self.contradictions):
                 self.contradictions.append({**c, "after_question_id": last_played})
         self.rules_mentioned.update(result.rules_mentioned)
+
+    # --- persistence --------------------------------------------------------------
+
+    _FIELDS = ("interviewee", "label", "plan", "relevant_contracts", "slot_ids", "transcript", "last_utterance_t",
+               "last_called_t", "q_counter", "plan_index", "questions", "queue", "based_on_t_ms", "played",
+               "slot_fills", "contradictions")
+
+    def to_dict(self) -> dict:
+        d = {k: getattr(self, k) for k in self._FIELDS}
+        d["interview_id"] = self.interview_id
+        d["rules_mentioned"] = sorted(self.rules_mentioned)
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict, brief: str, bank: dict) -> "InterviewSession":
+        s = cls(d["interview_id"], d["interviewee"], brief=brief, bank=bank, plan=d.get("plan"))
+        for k in cls._FIELDS:
+            if k in d:
+                setattr(s, k, d[k])
+        s.rules_mentioned = set(d.get("rules_mentioned", []))
+        return s
 
     # --- views --------------------------------------------------------------------
 

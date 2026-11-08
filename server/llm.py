@@ -68,7 +68,9 @@ _client = None
 
 def _c():
     global _client
-    _client = _client or anthropic.AsyncAnthropic()
+    # gzip only: the SDK's httpx2 needs Brotli >= 1.2 for "br" responses, and older
+    # Brotli installs (common in conda) crash every call with a connection error.
+    _client = _client or anthropic.AsyncAnthropic(default_headers={"Accept-Encoding": "gzip, deflate"})
     return _client
 
 
