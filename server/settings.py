@@ -27,10 +27,18 @@ def _copy_defaults() -> dict:
     return json.loads(json.dumps(DEFAULTS))
 
 
-def load_settings() -> dict:
+def _client_path(base: str, company_id: str | None) -> str:
+    if not company_id:
+        return base
+    safe = "".join(ch for ch in company_id if ch.isalnum() or ch in "-_ ").strip().replace(" ", "_") or "default"
+    return os.path.join(os.path.dirname(base), "clients", safe, os.path.basename(base))
+
+
+def load_settings(company_id: str | None = None) -> dict:
     s = _copy_defaults()
-    if os.path.isfile(SETTINGS_PATH):
-        with open(SETTINGS_PATH) as f:
+    path = _client_path(SETTINGS_PATH, company_id)
+    if os.path.isfile(path):
+        with open(path) as f:
             stored = json.load(f)
         s.update({k: v for k, v in stored.items() if k in DEFAULTS})
     return s
@@ -60,7 +68,7 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def save_settings(changes: dict, actor: str) -> dict:
+def save_settings(changes: dict, actor: str, company_id: str | None = None) -> dict:
     """Validate and save partial settings, append an audit entry, handle purge.
 
     Raises ValueError on bad keys or values (nothing is written then).
@@ -69,30 +77,34 @@ def save_settings(changes: dict, actor: str) -> dict:
     purge = bool(changes.pop("purge", False))
     _validate(changes)
 
-    s = load_settings()
+    s = load_settings(company_id)
     s.update(changes)
-    os.makedirs(os.path.dirname(SETTINGS_PATH) or ".", exist_ok=True)
-    with open(SETTINGS_PATH, "w") as f:
+    path = _client_path(SETTINGS_PATH, company_id)
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w") as f:
         json.dump(s, f, indent=2, sort_keys=True)
 
     purged = False
-    if purge and not s["drift_enabled"] and os.path.exists(LIVE_EVENTS_PATH):
-        os.remove(LIVE_EVENTS_PATH)
+    live_path = _client_path(LIVE_EVENTS_PATH, company_id)
+    if purge and not s["drift_enabled"] and os.path.exists(live_path):
+        os.remove(live_path)
         purged = True
 
     entry = {"ts": _now(), "actor": actor, "changes": changes}
     if purged:
         entry["purged_live_events"] = True
-    os.makedirs(os.path.dirname(AUDIT_PATH) or ".", exist_ok=True)
-    with open(AUDIT_PATH, "a") as f:
+    audit_path = _client_path(AUDIT_PATH, company_id)
+    os.makedirs(os.path.dirname(audit_path) or ".", exist_ok=True)
+    with open(audit_path, "a") as f:
         f.write(json.dumps(entry, sort_keys=True) + "\n")
     return s
 
 
-def recent_audit(n: int = 20) -> list[dict]:
-    if not os.path.isfile(AUDIT_PATH):
+def recent_audit(n: int = 20, company_id: str | None = None) -> list[dict]:
+    path = _client_path(AUDIT_PATH, company_id)
+    if not os.path.isfile(path):
         return []
-    with open(AUDIT_PATH) as f:
+    with open(path) as f:
         lines = [l for l in f.read().splitlines() if l.strip()]
     return [json.loads(l) for l in lines[-n:]]
 

@@ -717,7 +717,7 @@
       if (skeletons) skeletons.hidden = true;
       if (content) content.hidden = false;
       status.textContent = useMocks ? "Showing synthetic preview data" : "Connected to local server";
-      if (message) message.textContent = route.name === "interview" ? "Interview state refreshes every second." : route.name === "contracts" ? "Synthetic interview evidence and contract targets." : "Synthetic demonstration · client monitoring permissions apply.";
+      if (message) message.textContent = route.name === "interview" ? "Interview state refreshes every second." : route.name === "contracts" ? "Interview evidence and contract targets." : "Client monitoring permissions apply.";
       focusLineage(route);
     } catch {
       if (currentGeneration !== generation) return;

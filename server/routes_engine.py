@@ -61,17 +61,17 @@ router = APIRouter(on_startup=[_startup_prune, _startup_load_sessions])
 
 
 @router.get("/api/settings")
-def get_settings():
-    return {**st.load_settings(), "audit": st.recent_audit(20)}
+def get_settings(company_id: str | None = None):
+    return {**st.load_settings(company_id), "company_id": company_id, "audit": st.recent_audit(20, company_id)}
 
 
 @router.post("/api/settings")
-def post_settings(body: dict = Body(...), x_admin_token: str | None = Header(default=None)):
+def post_settings(body: dict = Body(...), company_id: str | None = None, x_admin_token: str | None = Header(default=None)):
     expected = os.environ.get("ADMIN_TOKEN")
     if not expected or x_admin_token != expected:
         raise HTTPException(status_code=401, detail="admin token required")
     try:
-        return st.save_settings(body, actor=st.load_settings()["admin"])
+        return st.save_settings(body, actor=st.load_settings(company_id)["admin"], company_id=company_id)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 

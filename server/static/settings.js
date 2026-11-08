@@ -1,7 +1,7 @@
 (() => {
   const root = document.getElementById('settings-view');
   if (!root) return;
-  const TOKEN_KEY = 'fitcheck.admin_token';
+  const TOKEN_KEY = 'client_evidence.admin_token';
   const booleanKeys = ['drift_enabled', 'notes_matching', 'send_to_sf'];
   let baseline;
   let catalog = [];
@@ -9,6 +9,8 @@
   let dirty = false;
   let tokenValue = '';
   let controls = {};
+  let selectedClient = 'medicare_billing_demo';
+  let clients = [];
 
   const make = (tag, text, attributes = {}) => {
     const element = document.createElement(tag);
@@ -64,7 +66,8 @@
   const status = make('p', 'Loading client settings…', { id: 'client-settings-status', role: 'status' });
   status.setAttribute('aria-live', 'polite');
   const body = make('div', undefined, { id: 'client-settings-body' });
-  root.replaceChildren(style, make('h2', 'Client settings'),
+  const clientPicker = make('select', undefined, { id: 'settings-client-picker', 'aria-label': 'Client company' });
+  root.replaceChildren(style, make('h2', 'Client settings'), make('label', 'Active client company', { htmlFor: 'settings-client-picker', className: 'settings-label' }), clientPicker,
     make('p', 'Choose what is measured for this client. Usage monitoring is off until the client enables it.', { className: 'settings-intro' }), status, body);
 
   function report(message, error = false) {
@@ -80,7 +83,9 @@
   }
 
   async function getJSON(path) {
-    const response = await fetch(path, { cache: 'no-store' });
+    const separator = path.includes('?') ? '&' : '?';
+    const scopedPath = path === '/api/settings' ? path + separator + 'company_id=' + encodeURIComponent(selectedClient) : path;
+    const response = await fetch(scopedPath, { cache: 'no-store' });
     if (!response.ok) throw new Error('Could not load the saved settings and contracts.');
     return response.json();
   }
@@ -197,7 +202,7 @@
     setBusy(true);
     report('Saving settings…');
     try {
-      const response = await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Token': token }, body: JSON.stringify(changes) });
+      const response = await fetch('/api/settings?company_id=' + encodeURIComponent(selectedClient), { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Token': token }, body: JSON.stringify(changes) });
       if (!response.ok) throw new Error(response.status === 401 ? 'The admin token was not accepted. Correct it and try again.' : 'The server could not save these changes. Your edits are still here.');
       const saved = snapshot(await response.json());
       let auditAvailable = true;
@@ -222,7 +227,10 @@
       body.replaceChildren(skeleton);
     }
     try {
-      const [settings, contracts] = await Promise.all([getJSON('/api/settings'), getJSON('/api/contracts')]);
+      const [options, settings, contracts] = await Promise.all([fetch('/api/interview-options', { cache: 'no-store' }).then(r => r.json()), getJSON('/api/settings'), getJSON('/api/contracts')]);
+      clients = options.companies || [];
+      clientPicker.replaceChildren(...clients.map(client => make('option', client.name, { value: client.id })));
+      clientPicker.value = selectedClient;
       if (!Array.isArray(contracts) || !contracts.every(c => c && typeof c.id === 'string')) throw new Error('Could not load the available contracts.');
       baseline = snapshot(settings);
       catalog = [...new Map(contracts.map(c => [c.id, c])).values()];
@@ -244,5 +252,6 @@
   window.addEventListener('hashchange', () => {
     if (location.hash === '#settings' && !dirty && !busy) load();
   });
+  clientPicker.addEventListener('change', () => { selectedClient = clientPicker.value; baseline = null; load(); });
   load();
 })();
