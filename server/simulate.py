@@ -21,6 +21,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+DATA_DIR = REPO_ROOT / "data"                      # tests patch these two so they never touch real files
+LOG_FACTS_PATH = REPO_ROOT / "kb" / "log_facts.json"
 
 # Post-launch values per week (index 0 = week 1). Planted numbers: they appear in the pitch.
 DEFAULT_SCENARIO = {
@@ -237,6 +239,25 @@ def legacy_facts(events: list[dict]) -> dict:
     }
 
 
+def write_outputs(seed: int, scenario: dict) -> dict:
+    """Generate and write data/legacy_events.jsonl, data/post_events.jsonl and kb/log_facts.json. Returns counts.
+
+    Paths are read from the module constants at call time, so tests can redirect them.
+    """
+    legacy, post = generate(seed, scenario)
+    data_dir = Path(DATA_DIR)
+    data_dir.mkdir(parents=True, exist_ok=True)
+    for name, events in [("legacy_events.jsonl", legacy), ("post_events.jsonl", post)]:
+        with open(data_dir / name, "w") as f:
+            for e in events:
+                f.write(json.dumps(e, sort_keys=True) + "\n")
+    Path(LOG_FACTS_PATH).parent.mkdir(parents=True, exist_ok=True)
+    with open(LOG_FACTS_PATH, "w") as f:
+        json.dump(legacy_facts(legacy), f, indent=2, sort_keys=True)
+        f.write("\n")
+    return {"legacy_events": len(legacy), "post_events": len(post)}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Generate synthetic legacy and post-launch usage.")
     ap.add_argument("--seed", type=int, default=7)
@@ -246,17 +267,9 @@ def main() -> None:
     if args.scenario:
         with open(args.scenario) as f:
             scenario.update(json.load(f))
-    legacy, post = generate(args.seed, scenario)
-    data_dir = REPO_ROOT / "data"
-    data_dir.mkdir(exist_ok=True)
-    for name, events in [("legacy_events.jsonl", legacy), ("post_events.jsonl", post)]:
-        with open(data_dir / name, "w") as f:
-            for e in events:
-                f.write(json.dumps(e, sort_keys=True) + "\n")
-    with open(REPO_ROOT / "kb" / "log_facts.json", "w") as f:
-        json.dump(legacy_facts(legacy), f, indent=2, sort_keys=True)
-        f.write("\n")
-    print(f"seed {args.seed}: {len(legacy)} legacy events, {len(post)} post-launch events; wrote data/*.jsonl and kb/log_facts.json")
+    counts = write_outputs(args.seed, scenario)
+    print(f"seed {args.seed}: {counts['legacy_events']} legacy events, {counts['post_events']} post-launch events; "
+          f"wrote data/*.jsonl and kb/log_facts.json")
 
 
 if __name__ == "__main__":
