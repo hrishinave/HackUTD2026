@@ -1,0 +1,17 @@
+{
+  "facts": {
+    "denial_exports_per_person_week": 6.18,
+    "median_submit_seconds": 260,
+    "multi_reopen_rate": 0.063,
+    "pa_in_notes_rate": 0.713,
+    "recheck_within_48h_rate": 0.831
+  },
+  "note": "Synthetic demo data.",
+  "plain": [
+    "In the legacy system the prior-auth number is typed into the notes on most prior-auth claims; the PA-NUM field is never used.",
+    "A clean claim takes a clerk about four and a half minutes from opening to submitting.",
+    "Most coverage changes after a visit are re-checked within two days.",
+    "Denial specialists export the denials list several times a week."
+  ],
+  "source": "synthetic legacy logs, weeks -12 to -1"
+}
