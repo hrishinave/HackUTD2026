@@ -31,7 +31,7 @@ def test_payload_from_real_finding_is_valid():
     f = findings(cat["contracts"], post, {"drift_enabled": True, "contracts_watched": ["C-01"], "notes_matching": True})[0]
     p = build_payload(f)
     assert validate_payload(p) == []
-    assert p["end_user_email"] == "usage-drift@fitcheck.invalid"
+    assert p["end_user_email"] == "usage-drift@pact.invalid"
     assert p["content"].rstrip().endswith("Simulated data.")
     assert "R-01" in p["content"] and "week 4" in p["content"]
 
