@@ -4,7 +4,7 @@ Date: 2026-11-08. Operator: Hrishi (C). Laptop: the demo MacBook, with the Meta 
 
 ## Status
 
-**PENDING: T1–T4.** No physical device test has been observed yet. Software checks do not establish a device PASS. Do not request `gate/C1-devices` until results are recorded below.
+**PENDING: T1 acceptance details; T2–T4.** Hrishi reported “it works” in response to the T1 instructions. This confirms qualitative operation; exact per-gesture counts and latency remain unconfirmed. Software checks do not establish a device PASS. Do not request `gate/C1-devices` until results are recorded below.
 
 ## Preparation
 
@@ -17,7 +17,7 @@ Date: 2026-11-08. Operator: Hrishi (C). Laptop: the demo MacBook, with the Meta 
 
 | Test | Result | Notes |
 |---|---|---|
-| T1: taps | PENDING | Single, double, triple tap, 10 trials each. Need `play`, `next`, `repeat`, respectively, 10/10 each within 0.5 s. Physical trials and latency have not been observed. |
+| T1: taps | WORKING — details pending | Hrishi's response to the T1 instructions: “it works”. Need explicit confirmation of `play`, `next`, `repeat`, respectively, 10/10 each within 0.5 s before marking PASS. |
 | T2: voice with microphone in use | PENDING | Need full-quality “test” in the glasses while the MacBook mic is active, with taps still working afterward. |
 | T3: transcription at 0.7 m | PENDING | Need 10 role-play lines, with “prior auth”, “notes”, “denial”, and “coverage” transcribed correctly. |
 | T4: call-mode guard | PENDING | During T2, need visual confirmation that Input is still MacBook Microphone and Output is still the glasses. |
@@ -99,6 +99,6 @@ After implementation:
 - Local HTTP checks: the HTML, JavaScript, and MP3 all return HTTP 200 with their expected content types.
 - Layout rendered and was visually inspected in the in-app browser. The preview was closed without starting media, so it cannot compete for glasses media keys.
 - Automated launch of native Google Chrome timed out; subsequent app inventory still showed Chrome not running. Hrishi must open Chrome for device tests. This is not a glasses-test result.
-- `git status` contains only the four C1 files; root `CLAUDE.md`, `AGENTS.md`, and `.env` are ignored and absent from status.
+- Before the skeleton commit, `git status` contained only the four C1 files; root `CLAUDE.md`, `AGENTS.md`, and `.env` were ignored and absent from status.
 
-T1–T4 remain pending. Do not treat the software checks as `gate/C1-devices` approval.
+T1's exact counts and latency, and all of T2–T4, remain pending. Do not treat the software checks as `gate/C1-devices` approval.
