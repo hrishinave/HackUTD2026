@@ -1,0 +1,16 @@
+{"rules": [
+  {"id": "PA-SCAN", "plain": "Prior-auth claims accepted only if notes contain 'AUTH'", "roles": ["billing_clerk"], "contract": "C-01",
+   "code_location": {"file": "legacy/CLMEDIT.cbl", "paragraph": "2100-PA-SCAN"}},
+  {"id": "TF-365", "plain": "Reject claims filed over 365 days after date of service", "roles": ["billing_clerk"], "contract": null,
+   "code_location": {"file": "legacy/CLMEDIT.cbl", "paragraph": "2200-TIMELY-FILING"}},
+  {"id": "MOD-25", "plain": "Claims without modifier 25 on same-day E/M are accepted", "roles": ["billing_clerk", "medical_coder"], "contract": null,
+   "code_location": {"file": "legacy/CLMEDIT.cbl", "paragraph": "2300-MODIFIER-CHECK"}},
+  {"id": "RETRO-ELIG", "plain": "Coverage change after date of service routes claim to clerk queue", "roles": ["billing_clerk"], "contract": "C-04",
+   "code_location": {"file": "legacy/CLMEDIT.cbl", "paragraph": "2400-RETRO-ELIG"}},
+  {"id": "PAYER-TX017", "plain": "Payer TX017 skips the duplicate edit", "roles": ["billing_clerk"], "contract": null,
+   "code_location": {"file": "legacy/CLMEDIT.cbl", "paragraph": "2500-DUP-CHECK"}},
+  {"id": "DUP-CHK", "plain": "Duplicate claim check on patient, date, procedure", "roles": ["billing_clerk"], "contract": null,
+   "code_location": {"file": "legacy/CLMEDIT.cbl", "paragraph": "2500-DUP-CHECK"}},
+  {"id": "DEAD-PATH", "plain": "Paper-claim branch never executes", "roles": [], "contract": null,
+   "code_location": {"file": "legacy/CLMEDIT.cbl", "paragraph": "2600-PAPER-CLAIM"}}
+]}
