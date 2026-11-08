@@ -12,13 +12,13 @@ import time
 from collections import deque
 
 from fastapi import APIRouter, Body, Header, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from server import kb, llm, tts
 from server import contracts as ct
 from server import settings as st
 from server.contracts import validate_contract
-from server.engine import InterviewSession
+from server.engine import InterviewSession, mmss
 from server.kb import build_brief
 
 log = logging.getLogger("pact.engine")
@@ -432,15 +432,18 @@ def interview_state(interview_id: str):
 
 
 @router.get("/api/contracts")
-def get_contracts():
-    """Catalog contracts with live interview evidence merged in.
+def get_contracts(company_id: str | None = None):
+    """One company's contracts. No company_id or the demo company: catalog contracts with live interview evidence
+    merged in, plus demo approved contracts. Any other company: only that company's approved contracts.
 
     Live slot fills become evidence[] items (quote, speaker, interview, mm:ss, Q-N lineage). For an
     interview that has live evidence, it replaces that interview's catalog quotes; other quotes stay.
     Sessions whose ID isn't INT-NN (rehearsal/test runs) are left out so every contract stays schema-valid,
     and so are sessions for other companies (the catalog contracts belong to the demo company).
     """
-    contracts = copy.deepcopy(ct.load_all_contracts())
+    if not kb.is_demo(company_id):
+        return copy.deepcopy(ct.load_company_contracts(company_id))
+    contracts = copy.deepcopy(ct.load_company_contracts(kb.DEMO_COMPANY_ID))
     live_sessions = [r.session for iid, r in sorted(sessions.items())
                      if _INTERVIEW_ID.match(iid) and kb.is_demo(r.session.company_id)]
     for contract in contracts:
@@ -456,6 +459,64 @@ def get_contracts():
         if errors:
             log.warning("contract %s fails the schema after merge: %s", contract["id"], errors[:3])
     return contracts
+
+
+def _saved_state(interview_id: str) -> dict | None:
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", interview_id):
+        return None
+    path = os.path.join(STATE_DIR, f"{interview_id}.json")
+    if not os.path.isfile(path):
+        return None
+    with open(path) as f:
+        raw = json.load(f)
+    return raw.get("state", raw) if isinstance(raw, dict) else None
+
+
+def transcript_markdown(d: dict, interview_id: str) -> str:
+    """Markdown transcript: title, then lines and played questions in time order as [mm:ss], then contradictions."""
+    def one_line(text) -> str:
+        return " ".join(str(text or "").split())
+
+    company = d.get("company_name") or d.get("company_id") or kb.DEMO_COMPANY_NAME
+    person = d.get("person_name") or d.get("label") or d.get("interviewee") or "Interviewee"
+    position = d.get("position") or ""
+    who = f"{person}, {position}" if position else person
+    out = [f"# Interview {interview_id}: {who} at {company}", "",
+           f"- Company: {company}", f"- Person: {person}"]
+    if position:
+        out.append(f"- Position: {position}")
+    out += [f"- Interview: {interview_id}", "", "## Transcript", ""]
+    questions = d.get("questions") or {}
+    items = [(int(u.get("t_ms", 0)), 0, f"[{mmss(int(u.get('t_ms', 0)))}] {one_line(u.get('text'))}")
+             for u in d.get("transcript") or [] if one_line(u.get("text"))]
+    for p in d.get("played") or []:
+        q = questions.get(p.get("id"), {}) if isinstance(questions, dict) else {}
+        cue = one_line(p.get("cue") or q.get("cue"))
+        text = one_line(p.get("text") or q.get("text"))
+        t = int(p.get("played_at", 0))
+        items.append((t, 1, f"[{mmss(t)}] {p.get('id', 'Q-?')} asked: " + " ".join(x for x in (cue, text) if x)))
+    lines = [text for _, _, text in sorted(items, key=lambda x: (x[0], x[1]))]
+    out += [f"{x}  " for x in lines] if lines else ["_No transcript yet._"]
+    contradictions = d.get("contradictions") or []
+    if contradictions:
+        out += ["", "## Contradictions", ""]
+        for c in contradictions:
+            kind = one_line(c.get("kind")) or "contradiction"
+            rule = f" ({c['rule_id']})" if c.get("rule_id") else ""
+            out.append(f"- {kind}{rule}: \"{one_line(c.get('statement_a'))}\" vs \"{one_line(c.get('statement_b'))}\"")
+    return "\n".join(out) + "\n"
+
+
+@router.get("/api/interviews/{interview_id}/transcript")
+def interview_transcript(interview_id: str):
+    """The interview as Markdown (running session first, else the saved state). 404 for an unknown interview."""
+    runner = sessions.get(interview_id)
+    d = runner.session.to_dict() if runner else _saved_state(interview_id)
+    if d is None:
+        raise HTTPException(status_code=404, detail=f"unknown interview: {interview_id}")
+    if runner and not d.get("company_name"):
+        d["company_name"] = runner.session.company_name
+    return Response(content=transcript_markdown(d, interview_id), media_type="text/markdown; charset=utf-8")
 
 
 @router.websocket("/ws/client/{interview_id}")

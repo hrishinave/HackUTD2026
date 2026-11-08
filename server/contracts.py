@@ -60,6 +60,35 @@ def load_all_open_loops() -> list[dict]:
     return load_catalog(CATALOG_PATH).get("open_loops", []) + _approved()["open_loops"]
 
 
+DEMO_COMPANY_ID = "medicare_billing_demo"   # same value as server.kb.DEMO_COMPANY_ID (kb is not imported here)
+
+
+def is_demo_company(company_id: str | None) -> bool:
+    return (company_id or DEMO_COMPANY_ID) == DEMO_COMPANY_ID
+
+
+def _belongs(item: dict, company_id: str | None) -> bool:
+    """An item with no company_id belongs to the demo company (everything approved before per-company contracts)."""
+    return (item.get("company_id") or DEMO_COMPANY_ID) == (company_id or DEMO_COMPANY_ID)
+
+
+def load_company_contracts(company_id: str | None = None) -> list[dict]:
+    """One company's contracts. Demo company (or None): the Medicare catalog plus approved contracts whose
+    company_id is the demo or missing. Any other company: only its own approved contracts."""
+    approved = [c for c in _approved()["contracts"] if _belongs(c, company_id)]
+    if is_demo_company(company_id):
+        return load_catalog(CATALOG_PATH)["contracts"] + approved
+    return approved
+
+
+def load_company_open_loops(company_id: str | None = None) -> list[dict]:
+    """One company's open loops, filtered the same way as load_company_contracts."""
+    approved = [o for o in _approved()["open_loops"] if _belongs(o, company_id)]
+    if is_demo_company(company_id):
+        return load_catalog(CATALOG_PATH).get("open_loops", []) + approved
+    return approved
+
+
 def _num(identifier: str) -> int:
     return int(identifier.split("-")[1])
 

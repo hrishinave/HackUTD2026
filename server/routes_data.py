@@ -4,6 +4,7 @@ Owner: AK (role D). Paths and shapes are frozen in plan section 10.2. Settings a
 are read on every request so tests can change them after import.
 """
 import asyncio
+import copy
 import json
 import os
 import re
@@ -38,9 +39,12 @@ CONTRADICTION_MATCHERS = {
 }
 
 
-def _contracts() -> list[dict]:
-    """Catalog contracts plus approved drafted contracts (D5), so drift, findings and payloads include them."""
-    return ct.load_all_contracts()
+def _contracts(company_id: str | None = None) -> list[dict]:
+    """One company's contracts, so drift, findings and payloads include approved drafts (D5).
+
+    No company_id or the demo company: Medicare catalog plus demo approved contracts. Any other company: only its
+    own approved contracts (drift then has no events for them unless that company sends some)."""
+    return ct.load_company_contracts(company_id)
 
 
 def _settings(company_id: str | None = None) -> dict:
@@ -79,7 +83,7 @@ def drift(company_id: str | None = None):
         return {"enabled": False}
     events = _events(company_id)
     out = []
-    for c in _contracts():
+    for c in _contracts(company_id):
         if c["id"] not in s["contracts_watched"]:
             continue
         weekly = dr.weekly_metrics(c, events, s)
@@ -106,7 +110,7 @@ def drift(company_id: str | None = None):
 @router.get("/api/findings")
 def get_findings(company_id: str | None = None):
     """Findings for watched, drifting contracts. [] when drift monitoring is off."""
-    return dr.findings(_contracts(), _events(company_id), _settings(company_id))
+    return dr.findings(_contracts(company_id), _events(company_id), _settings(company_id))
 
 
 # ---------- Software Factory (simulated) ----------
@@ -117,14 +121,14 @@ def sf_payload(finding_id: str, company_id: str | None = None):
     s = _settings(company_id)
     if not s["send_to_sf"]:
         raise HTTPException(status_code=403, detail="sending to Software Factory is turned off in Client settings")
-    for f in dr.findings(_contracts(), _events(company_id), s):
+    for f in dr.findings(_contracts(company_id), _events(company_id), s):
         if f["id"] == finding_id:
             return build_payload(f)
     raise HTTPException(status_code=404, detail=f"unknown finding: {finding_id}")
 
 
 def _find(finding_id: str, s: dict, company_id: str | None = None) -> dict:
-    for f in dr.findings(_contracts(), _events(company_id), s):
+    for f in dr.findings(_contracts(company_id), _events(company_id), s):
         if f["id"] == finding_id:
             return f
     raise HTTPException(status_code=404, detail=f"unknown finding: {finding_id}")
@@ -147,7 +151,7 @@ def get_filed(company_id: str | None = None):
 @router.get("/api/contracts/{contract_id}/sf-requirement")
 def sf_requirement(contract_id: str, company_id: str | None = None):
     """Software Factory Feature Requirements document (Markdown) for one contract. Download only, nothing is sent."""
-    contracts = _contracts()
+    contracts = _contracts(company_id)
     contract = next((c for c in contracts if c["id"] == contract_id), None)
     if contract is None:
         raise HTTPException(status_code=404, detail=f"unknown contract: {contract_id}")
@@ -177,27 +181,47 @@ async def feedback_stub(request: Request):
 _draft_locks: dict[str, asyncio.Lock] = {}
 
 
+def _interview_state(interview_id: str) -> dict | None:
+    """A running session's in-memory state (it may be ahead of its saved file), else the saved state, else None."""
+    from server import routes_engine   # imported here: routes_engine is a sibling router, loaded by app.py
+    runner = routes_engine.sessions.get(interview_id)
+    if runner is not None:
+        return copy.deepcopy(runner.session.to_dict())
+    try:
+        return cd._load_state(interview_id)
+    except FileNotFoundError:
+        return None
+
+
 @router.post("/api/drafts")
 async def run_drafts(body: dict = Body(...)):
-    """Draft contracts from one interview's saved state. Body: {"interview_id": "INT-01"}."""
+    """Draft contracts from one interview (running or saved). Body: {"interview_id": "INT-01"}.
+
+    422 for a malformed ID or an interview with no transcript lines yet ("no transcript yet"); 404 when the
+    interview is neither running nor saved; 409 while the same interview is being drafted; 502 on a model failure.
+    """
     interview_id = str((body or {}).get("interview_id", ""))
     if not re.fullmatch(r"INT-\d{2,}", interview_id):
         raise HTTPException(status_code=422, detail="interview_id must look like INT-01")
-    if not (Path(cd.STATE_DIR) / f"{interview_id}.json").exists():
+    state = _interview_state(interview_id)
+    if state is None:
         raise HTTPException(status_code=404, detail=f"no saved interview state for {interview_id}")
+    if not any(str(u.get("text", "")).strip() for u in state.get("transcript") or []):
+        raise HTTPException(status_code=422, detail="no transcript yet")
     lock = _draft_locks.setdefault(interview_id, asyncio.Lock())
     if lock.locked():
         raise HTTPException(status_code=409, detail=f"already drafting {interview_id}")
     async with lock:
         try:
-            return await cd.draft_contracts(interview_id)
+            return await cd.draft_contracts(interview_id, state=state)
         except Exception as exc:  # model call failed, refused or was cut off; saved drafts are unchanged
             return JSONResponse(status_code=502, content={"error": f"drafting failed: {type(exc).__name__}: {exc}"})
 
 
 @router.get("/api/drafts")
-def get_drafts(interview_id: str | None = None, status: str | None = None):
-    return cd.load_drafts(interview_id, status)
+def get_drafts(interview_id: str | None = None, status: str | None = None, company_id: str | None = None):
+    """Stored draft records; company_id keeps only drafts from that company's interviews."""
+    return cd.load_drafts(interview_id, status, company_id)
 
 
 def _decide(fn, draft_id: str, token: str | None, *args):
@@ -226,9 +250,10 @@ def reject_draft(draft_id: str, body: dict | None = Body(default=None), x_admin_
 def lifecycle(company_id: str | None = None):
     """Stage of every contract and pending draft: drafted, approved, baselined, kept or broken, renegotiated."""
     s = _settings(company_id)
-    contracts = _contracts()
+    contracts = _contracts(company_id)
     found = dr.findings(contracts, _events(company_id), s) if s["drift_enabled"] else []
-    return lc.contract_stages(contracts, cd.load_drafts(status="draft"), found, fb.load_filed(company_id), s,
+    drafts = cd.load_drafts(status="draft", company_id=company_id or ct.DEMO_COMPANY_ID)
+    return lc.contract_stages(contracts, drafts, found, fb.load_filed(company_id), s,
                               dr.load_legacy_events())
 
 

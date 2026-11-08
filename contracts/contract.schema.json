@@ -21,22 +21,25 @@
   ],
   "additionalProperties": false,
   "properties": {
-    "id": { "type": "string", "pattern": "^C-\\d{2}$" },
+    "id": { "type": "string", "pattern": "^C-\\d{2,}$" },
+
+    "company_id": { "type": "string", "minLength": 1, "description": "Company whose interviews produced this contract. Missing means the built-in demo company (medicare_billing_demo)." },
 
     "requirement": {
       "type": "object",
       "required": ["id", "statement", "feature"],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string", "pattern": "^R-\\d{2}$" },
+        "id": { "type": "string", "pattern": "^R-\\d{2,}$" },
         "statement": { "type": "string", "description": "What the system must do, in user terms (8090 Feature Requirements style)." },
         "feature": { "type": "string", "description": "Feature Requirements doc this belongs to, e.g. 'Claim submission'." }
       }
     },
 
     "role": {
-      "enum": ["billing_clerk", "medical_coder", "denial_specialist", "practice_manager"],
-      "description": "Drift is always measured per role, never per person."
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "snake_case role. Demo company: billing_clerk, medical_coder, denial_specialist or practice_manager; other companies: a slug of the interviewee's position. Drift is always measured per role, never per person."
     },
 
     "signal": {
@@ -87,7 +90,7 @@
     "events_required": {
       "type": "array",
       "items": { "type": "string" },
-      "description": "Event names from the catalog in medicare_contracts.json that the modernized app must emit."
+      "description": "Event names the modernized app must emit: from the catalog in medicare_contracts.json for the demo company, proposed snake_case names for other companies."
     },
 
     "related_detectors": {
@@ -192,7 +195,7 @@
       "properties": {
         "quote": { "type": "string" },
         "speaker": { "type": "string", "description": "Role label as it appears in the transcript, e.g. 'Billing clerk 2'." },
-        "interview_id": { "type": "string", "pattern": "^INT-\\d{2}$" },
+        "interview_id": { "type": "string", "pattern": "^INT-\\d{2,}$" },
         "timestamp": { "type": "string", "pattern": "^\\d{2}:\\d{2}$", "description": "mm:ss into the interview." },
         "question_id": { "type": ["string", "null"], "description": "Q-N of the question this quote answered, if any. Powers the lineage view." },
         "question_origin": { "enum": ["ai", "interviewer", "unprompted"] }

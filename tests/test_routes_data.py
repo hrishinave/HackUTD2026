@@ -130,27 +130,39 @@ def test_eval_reads_wrapped_state_files(api, tmp_path):
 # filing, lifecycle and sf-requirement per company
 
 def test_filing_is_per_company(api, tmp_path, monkeypatch):
+    # per-company settings and filing: the demo company's own client folder is separate from the default files
     from server import feedback as fb
     monkeypatch.setattr(fb, "FILED_PATH", tmp_path / "filed_feedback.json")
+    demo = "medicare_billing_demo"
     _on(send_to_sf=True)
-    st.save_settings({"drift_enabled": True, "send_to_sf": True}, actor="test", company_id="acme")
+    st.save_settings({"drift_enabled": True, "send_to_sf": True}, actor="test", company_id=demo)
     assert api.post("/api/findings/F-01/file?company_id=beta").status_code == 403   # beta never allowed sending
     first = api.post("/api/findings/F-01/file").json()
     assert first["feedback_number"] == 123 and first["already_filed"] is False
     assert api.post("/api/findings/F-01/file").json()["already_filed"] is True
-    assert api.get("/api/filed?company_id=acme").json() == {}
-    acme = api.post("/api/findings/F-01/file?company_id=acme").json()
-    assert acme["already_filed"] is False and acme["feedback_number"] == 124
-    assert set(api.get("/api/filed").json()) == {"F-01"} and set(api.get("/api/filed?company_id=acme").json()) == {"F-01"}
-    assert (tmp_path / "clients" / "acme" / "filed_feedback.json").exists()
+    assert api.get(f"/api/filed?company_id={demo}").json() == {}
+    other = api.post(f"/api/findings/F-01/file?company_id={demo}").json()
+    assert other["already_filed"] is False and other["feedback_number"] == 124
+    assert set(api.get("/api/filed").json()) == {"F-01"} and set(api.get(f"/api/filed?company_id={demo}").json()) == {"F-01"}
+    assert (tmp_path / "clients" / demo / "filed_feedback.json").exists()
     assert api.get("/api/lifecycle").json()["C-01"]["stages"]["renegotiated"] is True
-    assert api.get("/api/lifecycle?company_id=beta").json()["C-01"]["stages"]["renegotiated"] is False
-    assert api.get("/api/lifecycle?company_id=beta").json()["C-01"]["detail"]["watching"] == "off"
+    st.save_settings({"drift_enabled": False}, actor="test", company_id=demo)
+    assert api.get(f"/api/lifecycle?company_id={demo}").json()["C-01"]["detail"]["watching"] == "off"
+
+
+def test_non_demo_company_sees_only_its_own_contracts(api):
+    # a company with no approved contracts has no catalog contracts, no drift rows and no findings
+    _on()
+    st.save_settings({"drift_enabled": True, "notes_matching": True}, actor="test", company_id="beta")
+    assert api.get("/api/lifecycle?company_id=beta").json() == {}
+    assert api.get("/api/drift?company_id=beta").json() == {"enabled": True, "contracts": []}
+    assert api.get("/api/findings?company_id=beta").json() == []
+    assert api.get("/api/contracts/C-01/sf-requirement?company_id=beta").status_code == 404
 
 
 def test_sf_requirement_scoped_by_company(api):
     _on()
     default = api.get("/api/contracts/C-01/sf-requirement")
-    other = api.get("/api/contracts/C-01/sf-requirement?company_id=beta")
+    other = api.get("/api/contracts/C-01/sf-requirement?company_id=medicare_billing_demo")
     assert default.status_code == other.status_code == 200
     assert default.text != other.text   # drift on by default only: the default doc has the proposed change

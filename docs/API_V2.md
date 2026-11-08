@@ -93,6 +93,37 @@ contradictions, coverage/yield values, and call counters, plus `company_id`,
 `company_name`, `person_name`, `position` and `label`. Returns `404` until the
 interview has been started.
 
+### `GET /api/interviews/{interview_id}/transcript`
+
+The interview as Markdown (`text/markdown; charset=utf-8`), for download. Works
+for running sessions (in memory) and saved ones (`data/state`); unknown IDs
+return `404`. Shape:
+
+```markdown
+# Interview INT-09: Prakrit Chauhan, software engineer at randstad technology solutions
+
+- Company: randstad technology solutions
+- Person: Prakrit Chauhan
+- Position: software engineer
+- Interview: INT-09
+
+## Transcript
+
+[00:42] fixing up the Cobalt Scripts
+[00:53] Q-13 asked: Detail: How long does one of those old, slow Cobalt scripts take to run?
+[01:16] that usually takes about 20 minutes for that script to run ...
+
+## Contradictions
+
+- person_vs_self: "statement a" vs "statement b"
+```
+
+Transcript lines and played questions are interleaved in time order (a
+question played at the same mm:ss as a line comes after it); each line ends in
+two spaces (a Markdown line break). With no lines yet the transcript section
+says `_No transcript yet._`. The contradictions section only appears when there
+are any; a rule ID, when present, follows the kind in parentheses.
+
 ### `WebSocket /ws/client/{interview_id}`
 
 The live interviewer transport. The client receives `queue`, `audio`, and
@@ -106,11 +137,19 @@ The live interviewer transport. The client receives `queue`, `audio`, and
 The socket can initialize a session automatically, but the board's v2 flow uses
 the explicit start button first.
 
-### `GET /api/contracts`
+### `GET /api/contracts?company_id=`
 
-Returns the catalog behaviour contracts, including live evidence merged from
-running demo-company `INT-NN` sessions and approved draft contracts. Sessions
-for other companies never add evidence to the catalog contracts.
+Contracts are per company.
+
+- No `company_id`, or `medicare_billing_demo`: the Medicare catalog contracts
+  (C-01..C-05) with live evidence merged from running demo-company `INT-NN`
+  sessions, plus approved drafted contracts whose `company_id` is the demo
+  company or missing (unchanged from before).
+- Any other company: only that company's approved drafted contracts (no
+  catalog contracts, no live merge); `[]` when it has none.
+
+Every contract may carry an optional `company_id`; approved drafts always do.
+Contract IDs (`C-NN`) and requirement IDs (`R-NN`) are global across companies.
 
 ## Board settings
 
@@ -120,6 +159,17 @@ Settings, drift, findings, filing and lifecycle routes all take an optional
 `data/filed_feedback.json`); with it they use
 `data/clients/<company_id>/...` so each company has its own settings, events
 and filing record.
+
+They also measure only that company's contracts (the same set as
+`GET /api/contracts?company_id=`): without `company_id` or with the demo
+company, the Medicare catalog plus demo approved contracts; for any other
+company, only its own approved contracts. Drift for another company is simply
+empty until that company sends events, and
+`/api/contracts/{id}/sf-requirement` returns `404` for a contract that belongs
+to a different company than the one asked for. Approving a contract for a
+non-demo company adds it to that company's `contracts_watched`
+(`data/clients/<company_id>/client_settings.json`); demo approvals still go to
+the default settings file.
 
 ### `GET /api/settings`
 
@@ -197,29 +247,78 @@ connects to a real external service. Invalid payloads return `422`.
 
 ### `POST /api/drafts`
 
-Drafts contracts and open loops from a saved interview. Request body:
+Drafts contracts and open loops from one interview, running or saved (a
+running session's in-memory state is used, so the board can call this the
+moment an interview ends). Request body:
 
 ```json
-{"interview_id":"INT-01"}
+{"interview_id":"INT-09"}
 ```
 
-Returns `interview_id`, draft `items`, and `rejected` checker results. A missing
-saved interview returns `404`; a concurrent run returns `409`; a model/provider
-failure returns `502`; malformed IDs (not `INT-` plus two or more digits) return
-`422`.
+Response:
+
+```json
+{"interview_id": "INT-09", "company_id": "randstad_technology_solutions", "mode": "generic",
+ "items": [{"draft_id": "DR-INT-09-1", "kind": "contract", "status": "draft", "company_id": "...",
+            "contract": {...}, "open_loop": null, "stated_value": 1200, "baseline_value": null,
+            "target_source": "stated", "contradiction": null, "checks": [...], "rationale": "..."}],
+ "rejected": [{"requirement": "...", "reasons": ["quote not found in transcript"]}]}
+```
+
+`items` is the interview's records after the run (earlier approved/rejected
+ones are kept, earlier pending drafts are replaced). Errors:
+
+| Status | `detail` / body | When |
+|---|---|---|
+| `422` | `"interview_id must look like INT-01"` | malformed ID |
+| `404` | `"no saved interview state for INT-NN"` | neither running nor saved |
+| `422` | `"no transcript yet"` | the transcript has no non-blank lines |
+| `409` | `"already drafting INT-NN"` | a run for the same interview is in flight |
+| `502` | `{"error": "drafting failed: ..."}` | model refused, was cut off or failed |
+
+Two modes, chosen from the interview's `company_id` (`mode` in the response):
+
+- `demo` (`medicare_billing_demo` or no company): unchanged. Medicare prompt,
+  events/flags/tags must exist in the event catalog, roles are the four
+  Medicare roles, baselines come from the simulated legacy logs, rule IDs from
+  the COBOL rule list.
+- `generic` (any other company): the prompt names the company and position
+  and has no Medicare text. There is no event catalog, so the model proposes
+  the events the new system must emit (same six templates); code checks every
+  event, flag, tag and source-view name against `^[a-z][a-z0-9_]{2,60}$`.
+  `role` is a snake_case slug of the position (`"Software Engineer"` ->
+  `software_engineer`). With no legacy logs, `baseline.source` is
+  `"interview"` and `baseline.values` holds the interviewee's stated number
+  (empty when none); confidence is `said: true, did: false, code: false`,
+  level `medium` when the interviewee gave a number and `low` otherwise;
+  `code_refs` is empty. A stated number becomes a contract (e.g. "takes about
+  20 minutes ... down to 3 minutes" -> `median_duration`, stated 1200 s,
+  target 180 s, tolerance 45 s); a real need with no measurable events
+  becomes an open loop with a suggested snake_case event.
+
+Both modes check quotes verbatim against the transcript (a single line, or up
+to 4 consecutive speech fragments joined, with the same 0.85 fuzzy ratio),
+check duplicates against that company's contracts only, and keep at most 5
+drafts and 5 open loops. With `LLM_PROVIDER=fake` a generic interview gets one
+open loop quoting its longest line.
 
 ### `GET /api/drafts`
 
 Lists stored draft records. Optional query filters:
 
 ```text
-/api/drafts?interview_id=INT-01&status=draft
+/api/drafts?interview_id=INT-01&status=draft&company_id=randstad_technology_solutions
 ```
+
+`company_id` keeps only drafts from that company's interviews (each record's
+`company_id`, else its interview's saved state; unknown interviews count as
+the demo company). Without `company_id` every draft is returned, as before.
 
 ### `POST /api/drafts/{draft_id}/approve`
 
 Approves a draft and assigns final contract/requirement IDs where applicable.
-Requires `X-Admin-Token`. Missing credentials return `401`, unknown drafts
+The approved contract or open loop gets the draft's `company_id`. Requires
+`X-Admin-Token`. Missing credentials return `401`, unknown drafts
 return `404`, and already-decided/conflicting drafts return `409`.
 
 ### `POST /api/drafts/{draft_id}/reject`
