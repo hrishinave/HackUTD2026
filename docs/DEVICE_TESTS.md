@@ -4,7 +4,9 @@ Date: 2026-11-08. Operator: Hrishi (C). Laptop: the demo MacBook, with the Meta 
 
 ## Status
 
-**T2 retry, T3, and T4 PASS (operator-reported); C1 incomplete.** Hrishi replied “works” to the explicit-MacBook microphone retry and its voice, tap, and routing checks, then “yes t3 works” to the transcription test. The first T2 failure is retained below. T1's exact counts and timing remain unconfirmed. Do not request `gate/C1-devices` yet.
+**T1–T4 PASS (operator-reported); C1 device testing complete.** Hrishi clarified “no i meant it all passed with .5 secs” after the T1 acceptance question, correcting the earlier selection of “Some taps failed or were slower”. The corrected report is that all three gestures passed 10/10 within 0.5 s. T2 passed on retry after selecting the built-in microphone explicitly; T3 and T4 also passed according to Hrishi's reports. The first T2 failure is retained below.
+
+**Gate handoff:** device outcome is PASS for the integrator's `gate/C1-devices` tag message. Final `git merge origin/main` reported already up to date; `pytest -q` still collected no tests (exit 5). This is not a green suite, so publish for review without claiming the workflow's full-suite check passed. Only Keshav (W) may merge to main and create the gate tag.
 
 ## Preparation
 
@@ -17,7 +19,7 @@ Date: 2026-11-08. Operator: Hrishi (C). Laptop: the demo MacBook, with the Meta 
 
 | Test | Result | Notes |
 |---|---|---|
-| T1: taps | WORKING — details pending | Hrishi's response to the T1 instructions: “it works”. Need explicit confirmation of `play`, `next`, `repeat`, respectively, 10/10 each within 0.5 s before marking PASS. |
+| T1: taps | PASS — operator-reported | Hrishi clarified “no i meant it all passed with .5 secs” in response to the explicit question about single/double/triple taps each passing 10/10 within 0.5 s. This supersedes the mistakenly selected failure option. No independently measured latency trace. |
 | T2: voice with microphone in use | PASS on retry — operator-reported | First default-device probe selected the glasses (FAIL). After restoring routing, Hrishi replied “works” to the explicit-device retry and checks for MacBook input, clear voice through glasses, and functioning taps with capture active. Exact microphone label was not supplied. |
 | T3: transcription at 0.7 m | PASS — operator-reported | Hrishi reported “yes t3 works” in response to the ten-line test at 0.7 m, requiring “prior auth”, “notes”, “denial”, and “coverage” to be recognized correctly. No raw transcript or per-line count was supplied; result is the operator's report. |
 | T4: call-mode guard | PASS — operator-reported | Hrishi replied “works” to the retry instructions, which included checking that Input remained MacBook Microphone and Output remained glasses during active capture. No screenshot or independent agent observation. |
@@ -131,5 +133,7 @@ After implementation:
 - Layout rendered and was visually inspected in the in-app browser. The preview was closed without starting media, so it cannot compete for glasses media keys.
 - Automated launch of native Google Chrome timed out; subsequent app inventory still showed Chrome not running. Hrishi must open Chrome for device tests. This is not a glasses-test result.
 - Before the skeleton commit, `git status` contained only the four C1 files; root `CLAUDE.md`, `AGENTS.md`, and `.env` were ignored and absent from status.
+- Final C1 integration check: fetched origin and tags; `git merge origin/main` → already up to date at `e5dbb1c`; `pytest -q` → no tests collected, exit 5. No test suite is present on current main. This remains a handoff limitation, not a passing test result.
+- Origin gate tags at handoff: `gate/G0-bootstrap`, `gate/D1-legacy`. `gate/E1-server` is absent, so C2's socket test and C3/C4's server-dependent work remain blocked on Prakrit (E).
 
-T2 passed on retry, and T3 and T4 passed according to Hrishi's reports; the original T2 failure is retained. T1's exact counts and latency remain pending. Do not treat the software checks as `gate/C1-devices` approval.
+All four device tests passed according to Hrishi's reports; the original T2 failure and its recovery are retained. Devices are ready for the C1 gate review, but the required green-suite condition cannot be established while pytest collects no tests. Do not create or claim the integrator's gate tag from this branch.
