@@ -174,7 +174,7 @@ All four device tests passed according to Hrishi's reports; the original T2 fail
 
 ## C3: queue, taps, playback, and freshness
 
-**Physical glasses checks: PENDING.** Do not request `gate/C3-client` until the fake-server glasses test and the subsequent real-engine glasses retest are recorded. Automated transport tests mock recognition and browser audio and are not physical passes.
+**Fake-server physical glasses check: PASS (operator-reported). Real-engine physical retest: PENDING.** Do not request `gate/C3-client` until the real-engine glasses retest is recorded. Automated transport tests mock recognition and browser audio and are not physical passes.
 
 ### Gates and baseline
 
@@ -193,6 +193,7 @@ All four device tests passed according to Hrishi's reports; the original T2 fail
 - `node --check server/static/interviewer.js`: PASS. Temporary C3 harness: PASS for top/second/repeat selection, safe rendering, clip precedence, missing-clip fallback, played/metric messages, displayed latency, fresh-queue arrival, timeout behavior, and stale-playback callback isolation.
 - Existing C2 temporary checks were updated only to supply C3's browser/DOM stubs; all C2 recognition, buffering, reconnect, permission, and HTTP setup checks still PASS.
 - Full Python suite after C3 implementation: **67 passed**, one third-party deprecation warning.
+- Final review sync: merged `origin/main` through `e15c1a9`, including the data gates and C2 integration. Full suite on the merged client branch: **104 passed**, one third-party deprecation warning, in 58.08 seconds. C2 and C3 temporary client harnesses and syntax checks also pass after the merge.
 - The standard fake provider emits one question. For the plan's three-question test, a temporary fixture in `/private/tmp/fit-check-c3-fake-server.py` wraps only the fake question response in a separate server process. It serves the real FastAPI routes on `127.0.0.1:8000`. No Engine-owned repo source is edited or copied into the client branch.
 - Actual C3 JavaScript against that three-question fake fixture: fresh queue in **1,015 ms**; second-current-question and repeat both acknowledged and stored by the real server. A stale queue waited **1,022 ms** wall time before playback (1,000 ms deadline plus event-loop scheduling).
 - Actual C3 JavaScript against the real Haiku engine on an isolated `127.0.0.1:8001` server: fresh queue in **1,408 ms** after a synthetic final; top question and repeat both acknowledged and stored. Browser audio and recognition were mocked in both transport checks; no microphone was opened by those checks.
@@ -209,5 +210,5 @@ Use MacBook Microphone input and glasses output, with other media apps/tabs clos
 
 | C3 check | Result | Notes |
 |---|---|---|
-| Fake-server three-question glasses mapping, latency, and freshness | PENDING | Hrishi has been asked to perform the test. |
+| Fake-server three-question glasses mapping, latency, and freshness | PASS — operator-reported | Hrishi selected “All fake-server C3 glasses checks pass” for the procedure above. The real server state for C3-DEVICE contained 4 utterances and played IDs Q-2, Q-4, Q-4, Q-6, Q-7, including the repeated Q-4. No independent acoustic timing trace was supplied. |
 | Real-engine glasses mapping, playback, and freshness retest | PENDING | Automated real-Haiku transport passed; physical retest still required. |
