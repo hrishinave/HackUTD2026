@@ -174,7 +174,7 @@ All four device tests passed according to Hrishi's reports; the original T2 fail
 
 ## C3: queue, taps, playback, and freshness
 
-**Fake-server physical glasses check: PASS (operator-reported). Real-engine physical retest: PENDING.** Do not request `gate/C3-client` until the real-engine glasses retest is recorded. Automated transport tests mock recognition and browser audio and are not physical passes.
+**Fake-server physical glasses check: PASS (operator-reported). Real-engine physical retest: INCOMPLETE — speech capture needs confirmation.** Hrishi reported that all real-engine checks passed, but the subsequent saved C3-REAL-DEVICE state contained zero utterances and only fallback-plan play events. Playback operation is supported by the saved state; real spoken-input → fresh AI queue and freshness behavior are not yet corroborated. A targeted speech-capture check has been requested. Do not request `gate/C3-client` yet. Automated transport tests mock recognition and browser audio and are not physical passes.
 
 ### Gates and baseline
 
@@ -211,4 +211,4 @@ Use MacBook Microphone input and glasses output, with other media apps/tabs clos
 | C3 check | Result | Notes |
 |---|---|---|
 | Fake-server three-question glasses mapping, latency, and freshness | PASS — operator-reported | Hrishi selected “All fake-server C3 glasses checks pass” for the procedure above. The real server state for C3-DEVICE contained 4 utterances and played IDs Q-2, Q-4, Q-4, Q-6, Q-7, including the repeated Q-4. No independent acoustic timing trace was supplied. |
-| Real-engine glasses mapping, playback, and freshness retest | PENDING | Automated real-Haiku transport passed; physical retest still required. |
+| Real-engine glasses mapping, playback, and freshness retest | INCOMPLETE — speech capture confirmation pending | Hrishi selected “All real-engine C3 glasses checks pass”, but the subsequent C3-REAL-DEVICE server state contained 0 utterances and played IDs Q-1, Q-1, Q-2, Q-3, Q-4. Those are consistent with fallback-plan playback; they do not establish fresh AI questions from real speech. Asked Hrishi to wait for ready/listening statuses, speak without tapping, and report whether the latest sentence and a new queue appear. Automated real-Haiku transport remains a separate PASS. |
