@@ -23,7 +23,7 @@ You build the legacy "company in a box":
 - the eval that scores the agent against the answer key.
 
 - **Branch:** `data`
-- **You own (only edit these):** `legacy/**`, `kb/rules.json`, `kb/doc_diffs.json`, `kb/log_facts.json`, `server/routes_data.py` (after E1 creates it), `server/contracts.py`, `server/simulate.py`, `server/drift.py`, `server/feedback.py`, `tests/test_contracts.py`, `tests/test_simulate.py`, `tests/test_drift.py`, `tests/test_feedback.py`, `tests/fixtures/state_sample.json`.
+- **You own (only edit these):** `legacy/**`, `kb/rules.json`, `kb/doc_diffs.json`, `kb/log_facts.json`, `server/routes_data.py` (after E1 creates it), `server/contracts.py`, `server/simulate.py`, `server/drift.py`, `server/feedback.py`, `tests/test_contracts.py`, `tests/test_simulate.py`, `tests/test_drift.py`, `tests/test_feedback.py`, `tests/fixtures/state_sample.json`, and for D5: `server/contract_draft.py`, `tests/test_contract_draft.py`, `tests/fixtures/state_draft.json`.
 - **Never edit:** `server/app.py`, `server/routes_engine.py`, `server/routes_web.py`, `server/settings.py`, `server/static/*`, `kb/slots.json`, `kb/people.json`, `kb/question_bank.json`, `contracts/`, `agents/`, the plan.
 
 ## Setup on this laptop (once)
@@ -42,6 +42,7 @@ git checkout -b data
 | D2 Contracts loader + simulator | 1:30–2:30 | Loader and simulator: nothing. `POST /api/simulate` route: **`gate/E1-server` (hard)**, because it needs `server/routes_data.py` | Loader, simulator, their tests, data generation | `gate/D2-sim` |
 | D3 Drift detector + findings + `/api/drift`, `/api/findings` | 2:30–4:00 | Your own D2 work (same branch). `server.settings` from `gate/E1-server` (open by then). Live events from `gate/W2-events` (soft; works without them) | none | `gate/D3-drift` |
 | D4 Software Factory payload + stub + eval | 4:00–5:00 | Your own D3 work. Eval over saved interviews: `gate/E4-lineage` (soft; until then use a hand-written `tests/fixtures/state_sample.json`) | Payload, stub, eval against the fixture | `gate/D4-sf` |
+| **D5 Draft new contracts from interviews** (plan Task D5) | Starts as soon as your D2–D4 PR is merged; about 2 h | Building and unit tests: nothing (tests use a fixture and a stub model). Step 7 live check: a saved interview state, either the copied fixture or `gate/E4-lineage` (soft) | Everything except the live check on a real interview | `gate/D5-drafts` |
 | Fix list, rehearsals | 5:00–6:45 | `gate/CP3`, then `gate/FREEZE` | none | none |
 
 Check a gate:
@@ -71,7 +72,14 @@ If it prints `NOT_READY`, stop and tell your human: `[blocked] D waiting on gate
     - The tests pin C-01 broken from week 4, the C-02 week-5 breach not counting as drift, C-03/C-04/C-05 holding, and the privacy floor.
 - **D3, blind test.** You may write `data/scenario.json` (gitignored) with a different seed or drift for the blind check in the plan's test table. Don't tell the tester which contracts you planted until after the run.
 - **D4.** The payload has only `end_user_email` (`usage-drift@fitcheck.invalid`) and `content`, ending with "Simulated data." The stub returns `{"feedback_number": n}` counting from 123, or 422 with the errors. The payload route returns 403 when `send_to_sf` is false.
-- **Routes** go only in `server/routes_data.py`: `POST /api/simulate` (401 without `X-Admin-Token`), `GET /api/drift`, `GET /api/findings`, `GET /api/findings/{id}/sf-payload`, `POST /stub/v2/reporting-api/feedback`, `GET /api/eval`.
+- **D5, contract drafting.** Follow plan Task D5 exactly. It specifies the template table, `DRAFT_SCHEMA`, the system prompt, the 14 checks and their reason texts, the field-by-field contract assembly, lineage, say-vs-do, storage, routes, the planted U-1/U-2 lines, the simulator change and every test. The points most likely to go wrong:
+    - The model only returns specs. **Code** sets signal, comparator, defaults, window, IDs, lineage and confidence, and every draft must pass `validate_contract` before it's saved.
+    - The new clerk claims exports use a **separate random stream** (`random.Random(f"{seed}-claims-export-{i}-{w}")`), so no existing simulated event changes. Fix `legacy_facts` to count only `source_view == "denials"` exports. Run the full `pytest -q` after the simulator change, before writing `contract_draft.py`.
+    - `legacy_baseline` reuses `_measure` on legacy weeks; `weekly_metrics` stays unchanged.
+    - `_contracts()` in `routes_data.py` switches to `load_all_contracts()`, so approved drafts reach drift, findings and payloads.
+    - All paths (`DRAFTS_DIR`, `APPROVED_PATH`, `AUDIT_PATH`) are read at call time; tests patch them.
+    - Test interview ID is `INT-09` (evidence IDs must match `^INT-\d{2}$`).
+- **Routes** go only in `server/routes_data.py`: `POST /api/simulate` (401 without `X-Admin-Token`), `GET /api/drift`, `GET /api/findings`, `GET /api/findings/{id}/sf-payload`, `POST /stub/v2/reporting-api/feedback`, `GET /api/eval`, and for D5 `POST /api/drafts`, `GET /api/drafts`, `POST /api/drafts/{draft_id}/approve`, `POST /api/drafts/{draft_id}/reject`.
 
 ## Interfaces you produce (frozen; plan section 10)
 
