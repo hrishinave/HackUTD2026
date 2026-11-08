@@ -238,5 +238,172 @@
   ],
   "target": "C-05.current_practice",
   "text": "What would the system need so you could drop that list?"
+ },
+ "PQ-31": {
+  "cue": "Gap:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "PA-SCAN",
+  "text": "What has to be in the notes for a prior auth claim?"
+ },
+ "PQ-32": {
+  "cue": "Gap:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "PA-SCAN",
+  "text": "What happens if the notes don't mention the auth?"
+ },
+ "PQ-33": {
+  "cue": "Gap:",
+  "roles": [
+   "billing_clerk",
+   "denial_specialist"
+  ],
+  "target": "TF-365",
+  "text": "How long after the visit can you still file a claim?"
+ },
+ "PQ-34": {
+  "cue": "Follow-up:",
+  "roles": [
+   "billing_clerk",
+   "denial_specialist"
+  ],
+  "target": "TF-365",
+  "text": "Has a late claim ever gone through anyway?"
+ },
+ "PQ-35": {
+  "cue": "Gap:",
+  "roles": [
+   "billing_clerk",
+   "medical_coder"
+  ],
+  "target": "MOD-25",
+  "text": "When do you add modifier 25 to a claim?"
+ },
+ "PQ-36": {
+  "cue": "Gap:",
+  "roles": [
+   "billing_clerk",
+   "medical_coder"
+  ],
+  "target": "MOD-25",
+  "text": "What happens to a same-day visit claim without modifier 25?"
+ },
+ "PQ-37": {
+  "cue": "Gap:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "RETRO-ELIG",
+  "text": "What lands in your queue that you didn't send there?"
+ },
+ "PQ-38": {
+  "cue": "Gap:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "PAYER-TX017",
+  "text": "Do any payers get handled differently by the system?"
+ },
+ "PQ-39": {
+  "cue": "Follow-up:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "PAYER-TX017",
+  "text": "How does the system treat corrected claims from that payer?"
+ },
+ "PQ-40": {
+  "cue": "Gap:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "DUP-CHK",
+  "text": "How does the system decide a claim is a duplicate?"
+ },
+ "PQ-41": {
+  "cue": "Follow-up:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "DUP-CHK",
+  "text": "What do you do when a real claim gets flagged as duplicate?"
+ },
+ "PQ-42": {
+  "cue": "Gap:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "DEAD-PATH",
+  "text": "Do you ever submit paper claims anymore?"
+ },
+ "PQ-43": {
+  "cue": "Contradiction:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "X-1",
+  "text": "Has a claim without modifier 25 ever gone through?"
+ },
+ "PQ-44": {
+  "cue": "Contradiction:",
+  "roles": [
+   "billing_clerk",
+   "denial_specialist"
+  ],
+  "target": "X-1",
+  "text": "Who decides how modifier rules should work here?"
+ },
+ "PQ-45": {
+  "cue": "Contradiction:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "X-2",
+  "text": "Exactly what do you type in the notes for prior auth?"
+ },
+ "PQ-46": {
+  "cue": "Contradiction:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "X-2",
+  "text": "Does everyone on the team record auth the same way?"
+ },
+ "PQ-47": {
+  "cue": "Detail:",
+  "roles": [
+   "billing_clerk",
+   "denial_specialist"
+  ],
+  "target": "DD-1",
+  "text": "What does the manual say about filing deadlines?"
+ },
+ "PQ-48": {
+  "cue": "Contradiction:",
+  "roles": [
+   "billing_clerk",
+   "denial_specialist"
+  ],
+  "target": "DD-1",
+  "text": "The manual says 180 days; what limit do you actually use?"
+ },
+ "PQ-49": {
+  "cue": "Gap:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "DD-2",
+  "text": "Have you ever used the prior auth field on the claim screen?"
+ },
+ "PQ-50": {
+  "cue": "Follow-up:",
+  "roles": [
+   "billing_clerk"
+  ],
+  "target": "DD-2",
+  "text": "Where did you learn where the auth number goes?"
  }
 }
