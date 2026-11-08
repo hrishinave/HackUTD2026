@@ -1,4 +1,4 @@
-# Fit Check: parallel workflow, branches and gates
+# Pact: parallel workflow, branches and gates
 
 Four people work in parallel on four branches: Hrishi (C), Prakrit (E), AK (D) and Keshav (W). Dependencies between them are handled with **gates**. A gate is a git tag `gate/<name>` on `main`. Only the integrator (Keshav, W) creates gate tags, and only after merging the producing branch, running every test and doing the manual check listed below. An agent that needs a gate checks for the tag. If the tag isn't there, the agent stops and waits for its human.
 

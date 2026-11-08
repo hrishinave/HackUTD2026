@@ -1,4 +1,4 @@
-# Fit Check: shared project context (read this first)
+# Pact: shared project context (read this first)
 
 This file is the same for all four people and their coding agents (Claude Code or Codex). Your role file (`CLAUDE.md` / `AGENTS.md` at the repo root, copied from `agents/roles/<ROLE>/`) tells you what *you* build. The full specification is `docs/superpowers/plans/2026-11-08-hackutd-8090-full-plan.md` ("the plan"). When this file and the plan disagree, the plan wins; tell the integrator so this file gets fixed.
 
