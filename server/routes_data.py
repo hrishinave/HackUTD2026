@@ -10,15 +10,18 @@ import re
 from pathlib import Path
 
 from fastapi import APIRouter, Body, Header, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from server import contract_draft as cd
 from server import contracts as ct
 from server import drift as dr
+from server import feedback as fb
+from server import lifecycle as lc
 from server import settings as st
 from server import simulate as sim
 from server.contracts import load_catalog
 from server.feedback import build_payload, validate_payload
+from server.sf_export import requirement_markdown
 
 router = APIRouter()
 
@@ -120,6 +123,41 @@ def sf_payload(finding_id: str):
     raise HTTPException(status_code=404, detail=f"unknown finding: {finding_id}")
 
 
+def _find(finding_id: str, s: dict) -> dict:
+    for f in dr.findings(_contracts(), _events(), s):
+        if f["id"] == finding_id:
+            return f
+    raise HTTPException(status_code=404, detail=f"unknown finding: {finding_id}")
+
+
+@router.post("/api/findings/{finding_id}/file")
+def file_finding(finding_id: str):
+    """File a finding to the local stub once; a second call returns the same number. Simulated, no live connection."""
+    s = _settings()
+    if not s["send_to_sf"]:
+        raise HTTPException(status_code=403, detail="sending to Software Factory is turned off in Client settings")
+    return fb.file_finding(_find(finding_id, s), _stub)
+
+
+@router.get("/api/filed")
+def get_filed():
+    return fb.load_filed()
+
+
+@router.get("/api/contracts/{contract_id}/sf-requirement")
+def sf_requirement(contract_id: str):
+    """Software Factory Feature Requirements document (Markdown) for one contract. Download only, nothing is sent."""
+    contracts = _contracts()
+    contract = next((c for c in contracts if c["id"] == contract_id), None)
+    if contract is None:
+        raise HTTPException(status_code=404, detail=f"unknown contract: {contract_id}")
+    s = _settings()
+    finding = None
+    if s["drift_enabled"]:
+        finding = next((f for f in dr.findings(contracts, _events(), s) if f["contract_id"] == contract_id), None)
+    return Response(content=requirement_markdown(contract, finding), media_type="text/markdown; charset=utf-8")
+
+
 @router.post("/stub/v2/reporting-api/feedback")
 async def feedback_stub(request: Request):
     """Local stand-in for 8090's Feedback Integration API. Simulated, no live connection."""
@@ -131,9 +169,7 @@ async def feedback_stub(request: Request):
     if errors:
         return JSONResponse(status_code=422, content={"detail": {
             "error_code": "unprocessable_entity", "message": "invalid feedback payload", "details": errors}})
-    n = _stub["next"]
-    _stub["next"] = n + 1
-    return {"feedback_number": n}
+    return {"feedback_number": fb.next_feedback_number(_stub)}
 
 
 # ---------- contract drafting (Task D5) ----------
@@ -182,6 +218,18 @@ def approve_draft(draft_id: str, x_admin_token: str | None = Header(default=None
 @router.post("/api/drafts/{draft_id}/reject")
 def reject_draft(draft_id: str, body: dict | None = Body(default=None), x_admin_token: str | None = Header(default=None)):
     return _decide(cd.reject_draft, draft_id, x_admin_token, (body or {}).get("reason"))
+
+
+# ---------- contract lifecycle (addendum P3) ----------
+
+@router.get("/api/lifecycle")
+def lifecycle():
+    """Stage of every contract and pending draft: drafted, approved, baselined, kept or broken, renegotiated."""
+    s = _settings()
+    contracts = _contracts()
+    found = dr.findings(contracts, _events(), s) if s["drift_enabled"] else []
+    return lc.contract_stages(contracts, cd.load_drafts(status="draft"), found, fb.load_filed(), s,
+                              dr.load_legacy_events())
 
 
 # ---------- eval ----------
