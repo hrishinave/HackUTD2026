@@ -644,7 +644,9 @@
   }
 
   async function requestData(config, signal) {
-    const response = await fetch(useMocks ? config.mock : config.endpoint, { headers: { Accept: "application/json" }, signal, cache: "no-store" });
+    const rawPath = useMocks ? config.mock : config.endpoint;
+    const scoped = !useMocks && (/\/api\/(settings|drift|findings)/.test(rawPath)) ? rawPath + (rawPath.includes("?") ? "&" : "?") + "company_id=" + encodeURIComponent(selectedCompany) : rawPath;
+    const response = await fetch(scoped, { headers: { Accept: "application/json" }, signal, cache: "no-store" });
     if (!response.ok) throw new Error("Evidence unavailable");
     const data = await response.json();
     if (useMocks && config === views.contracts) return [...data, ...structuredClone(mockApprovedContracts)];

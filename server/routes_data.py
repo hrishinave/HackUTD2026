@@ -40,13 +40,13 @@ def _contracts() -> list[dict]:
     return ct.load_all_contracts()
 
 
-def _settings() -> dict:
+def _settings(company_id: str | None = None) -> dict:
     """The saved watch list is authoritative, including an explicit empty list."""
-    return st.load_settings()
+    return st.load_settings(company_id)
 
 
-def _events() -> list[dict]:
-    return dr.load_events(st.LIVE_EVENTS_PATH)
+def _events(company_id: str | None = None) -> list[dict]:
+    return dr.load_events(st._client_path(st.LIVE_EVENTS_PATH, company_id))
 
 
 def _require_admin(token: str | None) -> None:
@@ -69,12 +69,12 @@ def simulate(body: dict | None = Body(default=None), x_admin_token: str | None =
 # ---------- drift ----------
 
 @router.get("/api/drift")
-def drift():
+def drift(company_id: str | None = None):
     """{"enabled": false} when drift monitoring is off; else weekly rows and status per watched contract."""
-    s = _settings()
+    s = _settings(company_id)
     if not s["drift_enabled"]:
         return {"enabled": False}
-    events = _events()
+    events = _events(company_id)
     out = []
     for c in _contracts():
         if c["id"] not in s["contracts_watched"]:
@@ -101,20 +101,20 @@ def drift():
 
 
 @router.get("/api/findings")
-def get_findings():
+def get_findings(company_id: str | None = None):
     """Findings for watched, drifting contracts. [] when drift monitoring is off."""
-    return dr.findings(_contracts(), _events(), _settings())
+    return dr.findings(_contracts(), _events(company_id), _settings(company_id))
 
 
 # ---------- Software Factory (simulated) ----------
 
 @router.get("/api/findings/{finding_id}/sf-payload")
-def sf_payload(finding_id: str):
+def sf_payload(finding_id: str, company_id: str | None = None):
     """The Feedback payload for one finding. 403 when the client has not allowed sending to Software Factory."""
-    s = _settings()
+    s = _settings(company_id)
     if not s["send_to_sf"]:
         raise HTTPException(status_code=403, detail="sending to Software Factory is turned off in Client settings")
-    for f in dr.findings(_contracts(), _events(), s):
+    for f in dr.findings(_contracts(), _events(company_id), s):
         if f["id"] == finding_id:
             return build_payload(f)
     raise HTTPException(status_code=404, detail=f"unknown finding: {finding_id}")
