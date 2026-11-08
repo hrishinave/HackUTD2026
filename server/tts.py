@@ -8,7 +8,7 @@ import os
 
 import httpx
 
-log = logging.getLogger("fitcheck.tts")
+log = logging.getLogger("pact.tts")
 
 URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice}?output_format=mp3_44100_128"
 TIMEOUT_S = 3.0

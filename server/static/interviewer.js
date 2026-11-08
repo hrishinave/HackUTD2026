@@ -345,7 +345,7 @@ function startMediaKeys() {
   silence.volume = 0.01;
   // Start playback inside the click handler so Chrome permits audio.
   const playback = silence.play();
-  navigator.mediaSession.metadata = new MediaMetadata({ title: 'Fit Check interview' });
+  navigator.mediaSession.metadata = new MediaMetadata({ title: 'Pact interview' });
   navigator.mediaSession.playbackState = 'playing';
   navigator.mediaSession.setActionHandler('play', () => onTap('play'));
   navigator.mediaSession.setActionHandler('pause', () => onTap('play'));
