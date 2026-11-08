@@ -150,9 +150,15 @@ def next_feedback_number(counter: dict | None = None) -> int:
     return n
 
 
-def load_filed() -> dict:
-    """{finding_id: {"feedback_number", "contract_id", "filed_at"}}; {} when nothing is filed yet."""
-    p = Path(FILED_PATH)
+def _filed_path(company_id: str | None = None) -> Path:
+    """FILED_PATH for the default client; data/clients/<company>/filed_feedback.json for another company."""
+    from server.settings import _client_path
+    return Path(_client_path(str(FILED_PATH), company_id))
+
+
+def load_filed(company_id: str | None = None) -> dict:
+    """{finding_id: {"feedback_number", "contract_id", "filed_at"}}; {} when nothing is filed yet. Per company."""
+    p = _filed_path(company_id)
     if not p.exists():
         return {}
     try:
@@ -161,10 +167,10 @@ def load_filed() -> dict:
         return {}
 
 
-def file_finding(finding: dict, counter: dict | None = None) -> dict:
-    """File a finding to the stub once. Filing again returns the original number with already_filed True."""
+def file_finding(finding: dict, counter: dict | None = None, company_id: str | None = None) -> dict:
+    """File a finding to the stub once per company. Filing again returns the original number with already_filed True."""
     payload = build_payload(finding)
-    filed = load_filed()
+    filed = load_filed(company_id)
     if finding["id"] in filed:
         return {"feedback_number": filed[finding["id"]]["feedback_number"], "already_filed": True, "payload": payload}
     errors = validate_payload(payload)
@@ -173,7 +179,7 @@ def file_finding(finding: dict, counter: dict | None = None) -> dict:
     n = next_feedback_number(counter)
     filed[finding["id"]] = {"feedback_number": n, "contract_id": finding["contract_id"],
                             "filed_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
-    p = Path(FILED_PATH)
+    p = _filed_path(company_id)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(filed, indent=2))
     return {"feedback_number": n, "already_filed": False, "payload": payload}

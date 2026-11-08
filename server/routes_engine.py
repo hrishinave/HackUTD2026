@@ -19,7 +19,7 @@ from server import contracts as ct
 from server import settings as st
 from server.contracts import validate_contract
 from server.engine import InterviewSession
-from server.kb import build_brief, load_bank
+from server.kb import build_brief
 
 log = logging.getLogger("pact.engine")
 
@@ -48,7 +48,9 @@ def _startup_load_sessions() -> None:
                 d = json.load(f)
             if d["interview_id"] in sessions:  # startup hooks can fire twice; never replace a live session
                 continue
-            session =InterviewSession.from_dict(d, brief=build_brief(d["interview_id"], d["interviewee"]), bank=load_bank())
+            brief = _brief_for(d["interview_id"], d.get("interviewee", ""), d.get("company_id"),
+                               d.get("company_name", ""), d.get("person_name", ""), d.get("position", ""))
+            session = InterviewSession.from_dict(d, brief=brief, bank={})
             runner = Runner(session)
             runner.total_calls = d.get("_calls_total", 0)
             sessions[session.interview_id] = runner
@@ -285,12 +287,36 @@ class Runner:
 sessions: dict[str, Runner] = {}
 
 
-def _create_session(interview_id: str, interviewee: str) -> Runner:
-    """Build the brief and session. KeyError if the interviewee is unknown."""
-    brief = build_brief(interview_id, interviewee)
-    plan = kb.load_people()[interviewee]["plan"]
-    session = InterviewSession(interview_id, interviewee, brief=brief, bank=load_bank(), plan=plan)
-    session.apply_questions([], 0, 0)  # never empty: first plan question is ready before any speech
+def _brief_for(interview_id: str, interviewee: str, company_id: str | None, company_name: str = "",
+               person_name: str = "", position: str = "") -> str:
+    return build_brief(interview_id, interviewee, company_id=company_id, company_name=company_name,
+                       person_name=person_name, position=position)
+
+
+def _slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
+
+
+def _create_session(interview_id: str, interviewee: str, company_id: str | None = None, company_name: str = "",
+                    person_name: str = "", position: str = "", prefill: bool = True) -> Runner:
+    """Build the brief (once per session) and the session. KeyError if a demo interviewee is unknown.
+
+    Haiku writes every question, so the session has no question bank. prefill queues the first
+    fallback-plan question right away (for a socket opened before /start).
+    """
+    demo = kb.is_demo(company_id)
+    company_id = company_id or kb.DEMO_COMPANY_ID
+    brief = _brief_for(interview_id, interviewee, company_id, company_name, person_name, position)
+    plan = kb.load_people()[interviewee]["plan"] if demo else kb.generic_plan(position)
+    session = InterviewSession(interview_id, interviewee, brief=brief, bank={}, plan=plan, company_id=company_id)
+    session.company_name = company_name or (kb.DEMO_COMPANY_NAME if demo else company_id)
+    if person_name:
+        session.person_name = person_name
+        session.label = person_name
+    if position:
+        session.position = position
+    if prefill:
+        session.apply_questions([], 0, 0)  # never empty: first plan question is ready before any speech
     old = sessions.get(interview_id)
     runner = Runner(session)
     if old:
@@ -308,35 +334,91 @@ def _default_interviewee(interview_id: str) -> str:
     return "billing_clerk_2"
 
 
+OPENING_TIMEOUT_S = 8.0
+
+
+async def _opening_questions(runner: Runner) -> str:
+    """Ask Haiku for opening questions on an empty transcript; fall back to the plan on failure."""
+    s = runner.session
+    items, status = [], "ok"
+    if runner.can_question():
+        runner._count_call()
+        user_input, _ = s.build_input()
+        try:
+            items = await asyncio.wait_for(llm.complete_questions(s.brief, user_input), OPENING_TIMEOUT_S)
+        except Exception as e:  # timeout, refusal, API error: the fallback plan covers the opening
+            status = f"failed: {type(e).__name__}"
+            log.warning("%s opening questions failed: %s", s.interview_id, e)
+    s.apply_questions(items, 0, 0)
+    if not any(q.get("origin") == "ai" for q in s.queue):
+        status = "plan" if status == "ok" else status
+    return status
+
+
+async def _warm_bookkeeping(runner: Runner) -> str:
+    """Write the bookkeeping prompt cache (llm.warm_up's second half)."""
+    try:
+        runner._count_call()
+        await llm.complete_bookkeeping(runner.session.brief, WARM_INPUT)
+        return "ok"
+    except Exception as e:  # the interview still runs; the first real call just pays the cache write
+        log.warning("%s warm-up failed: %s", runner.session.interview_id, e)
+        return f"failed: {type(e).__name__}"
+
+
+WARM_INPUT = "<transcript>\n</transcript>\nThe interview is about to start. Return empty lists."
+
+
 @router.post("/api/interviews/{interview_id}/start")
 async def start_interview(interview_id: str, body: dict = Body(default={})):
-    interviewee = body.get("interviewee") or _default_interviewee(interview_id)
+    """Start (or restart) an interview. Body (all optional): interviewee, company_id, company_name, person_name, position.
+
+    Demo company (company_id omitted or "medicare_billing_demo"): interviewee from kb/people.json, 404 if unknown.
+    Any other company: the person comes from the body; no knowledge-base lookup, never 404.
+    """
+    body = body or {}
+    company_id = str(body.get("company_id") or "").strip() or kb.DEMO_COMPANY_ID
+    company_name = str(body.get("company_name") or "").strip()
+    person_name = str(body.get("person_name") or "").strip()
+    position = str(body.get("position") or "").strip()
+    if kb.is_demo(company_id):
+        interviewee = body.get("interviewee") or _default_interviewee(interview_id)
+    else:
+        interviewee = _slug(person_name) or "interviewee"
     try:
-        runner = _create_session(interview_id, interviewee)
+        runner = _create_session(interview_id, interviewee, company_id, company_name, person_name, position,
+                                 prefill=False)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"unknown interviewee: {interviewee}")
-    person_name = str(body.get("person_name", "")).strip()
-    position = str(body.get("position", "")).strip()
-    if person_name:
-        runner.session.person_name = person_name
-        runner.session.label = person_name
-    if position:
-        runner.session.position = position
-    runner.session.company_id = str(body.get("company_id", "medicare_billing_demo"))
-    if str(body.get("company_name", "")).strip():
-        runner.session.company_name = str(body["company_name"]).strip()
-    warm = "ok"
-    try:
-        await llm.warm_up(runner.session.brief)
-        runner.total_calls += 2
-    except Exception as e:  # the interview still runs; the first real call just pays the cache write
-        warm = f"failed: {type(e).__name__}"
-        log.warning("%s warm-up failed: %s", interview_id, e)
+    # The opening-questions call doubles as the question-cache warm-up (same brief and schema), so only the
+    # bookkeeping cache needs a separate warm-up call; both run at once to keep /start fast.
+    opening, warm = await asyncio.gather(_opening_questions(runner), _warm_bookkeeping(runner))
     if runner.sockets:
         runner.ensure_loop()
     await runner.send_queue()
-    log.info("%s started for %s (brief ~%d tokens, warm-up %s)", interview_id, interviewee, len(runner.session.brief) // 4, warm)
-    return {"ok": True, "interview_id": interview_id, "interviewee": interviewee, "warm_up": warm}
+    log.info("%s started for %s at %s (brief ~%d tokens, warm-up %s, opening %s)", interview_id, interviewee,
+             runner.session.company_name, len(runner.session.brief) // 4, warm, opening)
+    return {"ok": True, "interview_id": interview_id, "interviewee": interviewee, "company_id": company_id,
+            "company_name": runner.session.company_name, "person_name": runner.session.person_name,
+            "position": runner.session.position, "warm_up": warm, "opening": opening}
+
+
+_INTERVIEW_ID = re.compile(r"^INT-(\d{2,})$")
+
+
+@router.get("/api/interviews/next-id")
+def next_interview_id():
+    """Next unused INT-NN after the highest saved (data/state) or running interview ID."""
+    nums = [0]
+    for path in glob.glob(os.path.join(STATE_DIR, "INT-*.json")):
+        m = _INTERVIEW_ID.match(os.path.splitext(os.path.basename(path))[0])
+        if m:
+            nums.append(int(m.group(1)))
+    for iid in sessions:
+        m = _INTERVIEW_ID.match(iid)
+        if m:
+            nums.append(int(m.group(1)))
+    return {"interview_id": f"INT-{max(nums) + 1:02d}"}
 
 
 @router.get("/api/interviews/{interview_id}/state")
@@ -349,19 +431,18 @@ def interview_state(interview_id: str):
                       "bookkeeping_skipped": runner.skipped_book}}
 
 
-_INTERVIEW_ID = re.compile(r"^INT-\d{2}$")
-
-
 @router.get("/api/contracts")
 def get_contracts():
     """Catalog contracts with live interview evidence merged in.
 
     Live slot fills become evidence[] items (quote, speaker, interview, mm:ss, Q-N lineage). For an
     interview that has live evidence, it replaces that interview's catalog quotes; other quotes stay.
-    Sessions whose ID isn't INT-NN (rehearsal/test runs) are left out so every contract stays schema-valid.
+    Sessions whose ID isn't INT-NN (rehearsal/test runs) are left out so every contract stays schema-valid,
+    and so are sessions for other companies (the catalog contracts belong to the demo company).
     """
     contracts = copy.deepcopy(ct.load_all_contracts())
-    live_sessions = [r.session for iid, r in sorted(sessions.items()) if _INTERVIEW_ID.match(iid)]
+    live_sessions = [r.session for iid, r in sorted(sessions.items())
+                     if _INTERVIEW_ID.match(iid) and kb.is_demo(r.session.company_id)]
     for contract in contracts:
         live = [e for s in live_sessions for e in s.evidence(contract["id"])]
         if not live:

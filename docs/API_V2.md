@@ -1,4 +1,4 @@
-# Fit Check v2 API reference
+# Pact v2 API reference
 
 The v2 server is a FastAPI application normally run at `http://127.0.0.1:8000`.
 All JSON endpoints return JSON unless noted. Authentication tokens come from the
@@ -9,29 +9,89 @@ server's `.env`; never put them in source control.
 ### `GET /api/interviews`
 
 Lists saved and currently running interviews for the board selector. Each item
-contains `interview_id`, `label`, `interviewee`, `started`, and `updated_at`.
-An empty array is valid when no interview has been started or saved yet.
+contains `interview_id`, `label`, `person_name`, `position`, `company_id`,
+`company_name`, `interviewee`, `started`, and `updated_at`. An empty array is
+valid when no interview has been started or saved yet.
+
+### `GET /api/interviews/next-id`
+
+Returns the next unused interview ID: one more than the highest `INT-NN` found
+in saved states (`data/state/INT-*.json`) and running sessions, zero-padded to
+at least two digits.
+
+```json
+{"interview_id": "INT-08"}
+```
+
+`INT-01` when nothing exists yet; after `INT-99` comes `INT-100`. The board
+should call this before `POST /api/interviews/{id}/start`.
+
+### `GET /api/interview-options`
+
+Companies for the board's start dialog:
+
+```json
+{"companies": [
+  {"id": "medicare_billing_demo", "name": "Medicare Billing Office",
+   "people": [{"id": "billing_clerk_2", "label": "Billing clerk 2", "role": "billing_clerk", "interview_id": "INT-01"}]},
+  {"id": "acme_logistics", "name": "Acme Logistics",
+   "people": [{"id": "dana_lee", "label": "Dana Lee", "role": "Dispatcher", "interview_id": "INT-05"}]}
+]}
+```
+
+The built-in demo company always comes first with its knowledge-base people.
+Every other company found in saved or running interviews follows (deduplicated
+by `company_id`, sorted by name), listing the people interviewed there; for
+those, `role` is the position that was entered.
 
 ### `POST /api/interviews/{interview_id}/start`
 
-Starts or restarts an interview session and saves its initial state. The ID must
-follow the `INT-01` format.
+Starts or restarts an interview session and saves its initial state. Use an ID
+from `GET /api/interviews/next-id` (`INT-` and two or more digits).
 
-Request body:
+Request body (all fields optional):
 
 ```json
-{"interviewee": "billing_clerk_2"}
+{"company_id": "acme_logistics", "company_name": "Acme Logistics",
+ "person_name": "Dana Lee", "position": "Dispatcher"}
 ```
 
-`interviewee` is optional; the server chooses the knowledge-base default for the
-interview ID. A successful response includes `ok`, `interview_id`,
-`interviewee`, and `warm_up`. Unknown interviewees return `404`.
+- Demo company (`company_id` omitted or `"medicare_billing_demo"`): the
+  interviewee comes from `interviewee` (a `kb/people.json` key) or the
+  knowledge-base default for the interview ID; unknown interviewees return
+  `404`. The brief carries the Medicare context (rule catalogue, contract
+  slots, doc diffs, log facts, open items). `person_name` and `position` are
+  optional overrides for display.
+- Any other company: the person comes from the body; `interviewee` is ignored
+  and never causes a `404`. The brief is generic (no Medicare material) and
+  built from the company name, person name and position; there are no contract
+  slots, so `coverage` stays `0`.
+
+Every question is written by Claude Haiku (`bank_id` is always `null`; there is
+no prepared question bank). After the prompt-cache warm-up the server asks Haiku
+for opening questions on the empty transcript and queues them; if that fails or
+times out (8 s), the first fallback-plan question is queued instead (for other
+companies the plan is generic, e.g. "Walk me through a typical day as
+Dispatcher.").
+
+Response:
+
+```json
+{"ok": true, "interview_id": "INT-08", "interviewee": "dana_lee",
+ "company_id": "acme_logistics", "company_name": "Acme Logistics",
+ "person_name": "Dana Lee", "position": "Dispatcher",
+ "warm_up": "ok", "opening": "ok"}
+```
+
+`opening` is `"ok"` (Haiku questions queued), `"plan"` (no questions returned,
+fallback plan queued) or `"failed: <Error>"`.
 
 ### `GET /api/interviews/{interview_id}/state`
 
 Returns the current transcript, played questions, queue, slot fills,
-contradictions, coverage/yield values, and call counters. Returns `404` until
-the interview has been started.
+contradictions, coverage/yield values, and call counters, plus `company_id`,
+`company_name`, `person_name`, `position` and `label`. Returns `404` until the
+interview has been started.
 
 ### `WebSocket /ws/client/{interview_id}`
 
@@ -49,9 +109,17 @@ the explicit start button first.
 ### `GET /api/contracts`
 
 Returns the catalog behaviour contracts, including live evidence merged from
-running `INT-NN` sessions and approved draft contracts.
+running demo-company `INT-NN` sessions and approved draft contracts. Sessions
+for other companies never add evidence to the catalog contracts.
 
 ## Board settings
+
+Settings, drift, findings, filing and lifecycle routes all take an optional
+`?company_id=` query parameter. Without it they use the default client files
+(`data/client_settings.json`, `data/live_events.jsonl`,
+`data/filed_feedback.json`); with it they use
+`data/clients/<company_id>/...` so each company has its own settings, events
+and filing record.
 
 ### `GET /api/settings`
 
@@ -94,6 +162,31 @@ Builds the exact simulated Software Factory feedback JSON for a finding.
 Requires `send_to_sf` to be enabled; otherwise returns `403`. Unknown findings
 return `404`.
 
+### `POST /api/findings/{finding_id}/file?company_id=`
+
+Files a finding to the local Software Factory stub once per company and
+returns `{"feedback_number": 123, "already_filed": false, "payload": {...}}`;
+filing again returns the same number with `already_filed: true`. Requires that
+company's `send_to_sf`; otherwise `403`. Unknown findings return `404`.
+
+### `GET /api/filed?company_id=`
+
+The company's filing record: `{finding_id: {"feedback_number", "contract_id",
+"filed_at"}}`, `{}` when nothing is filed. Filing `F-01` for one company does
+not mark it filed for another.
+
+### `GET /api/lifecycle?company_id=`
+
+Stage of every contract and pending draft (`drafted`, `approved`, `baselined`,
+`kept`/`broken`, `renegotiated`) using that company's settings, events and
+filing record.
+
+### `GET /api/contracts/{contract_id}/sf-requirement?company_id=`
+
+Software Factory requirement document (Markdown) for one contract; when that
+company's drift monitoring shows the contract broken, the document includes a
+simulated proposed change. Unknown contracts return `404`.
+
 ### `POST /stub/v2/reporting-api/feedback`
 
 Local Software Factory stand-in. Accepts a validated feedback payload and
@@ -112,7 +205,8 @@ Drafts contracts and open loops from a saved interview. Request body:
 
 Returns `interview_id`, draft `items`, and `rejected` checker results. A missing
 saved interview returns `404`; a concurrent run returns `409`; a model/provider
-failure returns `502`; malformed IDs return `422`.
+failure returns `502`; malformed IDs (not `INT-` plus two or more digits) return
+`422`.
 
 ### `GET /api/drafts`
 
@@ -170,7 +264,7 @@ classification.
 - `GET /terms` — terms page.
 - `GET /privacy` — privacy page.
 - `GET /static/{path}` — static assets under `server/static`.
-- `GET /clips/{path}` — prepared/live audio clips under `data/clips`.
+- `GET /clips/{path}` — live question audio clips under `data/clips`.
 - `GET /docs`, `/redoc`, `/openapi.json` — FastAPI-generated API documentation.
 
 The standalone `/interviewer` page was removed in v2. The interview UI is now

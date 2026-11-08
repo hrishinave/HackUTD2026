@@ -123,38 +123,38 @@ def sf_payload(finding_id: str, company_id: str | None = None):
     raise HTTPException(status_code=404, detail=f"unknown finding: {finding_id}")
 
 
-def _find(finding_id: str, s: dict) -> dict:
-    for f in dr.findings(_contracts(), _events(), s):
+def _find(finding_id: str, s: dict, company_id: str | None = None) -> dict:
+    for f in dr.findings(_contracts(), _events(company_id), s):
         if f["id"] == finding_id:
             return f
     raise HTTPException(status_code=404, detail=f"unknown finding: {finding_id}")
 
 
 @router.post("/api/findings/{finding_id}/file")
-def file_finding(finding_id: str):
-    """File a finding to the local stub once; a second call returns the same number. Simulated, no live connection."""
-    s = _settings()
+def file_finding(finding_id: str, company_id: str | None = None):
+    """File a finding to the local stub once per company; a second call returns the same number. Simulated."""
+    s = _settings(company_id)
     if not s["send_to_sf"]:
         raise HTTPException(status_code=403, detail="sending to Software Factory is turned off in Client settings")
-    return fb.file_finding(_find(finding_id, s), _stub)
+    return fb.file_finding(_find(finding_id, s, company_id), _stub, company_id)
 
 
 @router.get("/api/filed")
-def get_filed():
-    return fb.load_filed()
+def get_filed(company_id: str | None = None):
+    return fb.load_filed(company_id)
 
 
 @router.get("/api/contracts/{contract_id}/sf-requirement")
-def sf_requirement(contract_id: str):
+def sf_requirement(contract_id: str, company_id: str | None = None):
     """Software Factory Feature Requirements document (Markdown) for one contract. Download only, nothing is sent."""
     contracts = _contracts()
     contract = next((c for c in contracts if c["id"] == contract_id), None)
     if contract is None:
         raise HTTPException(status_code=404, detail=f"unknown contract: {contract_id}")
-    s = _settings()
+    s = _settings(company_id)
     finding = None
     if s["drift_enabled"]:
-        finding = next((f for f in dr.findings(contracts, _events(), s) if f["contract_id"] == contract_id), None)
+        finding = next((f for f in dr.findings(contracts, _events(company_id), s) if f["contract_id"] == contract_id), None)
     return Response(content=requirement_markdown(contract, finding), media_type="text/markdown; charset=utf-8")
 
 
@@ -181,7 +181,7 @@ _draft_locks: dict[str, asyncio.Lock] = {}
 async def run_drafts(body: dict = Body(...)):
     """Draft contracts from one interview's saved state. Body: {"interview_id": "INT-01"}."""
     interview_id = str((body or {}).get("interview_id", ""))
-    if not re.fullmatch(r"INT-\d{2}", interview_id):
+    if not re.fullmatch(r"INT-\d{2,}", interview_id):
         raise HTTPException(status_code=422, detail="interview_id must look like INT-01")
     if not (Path(cd.STATE_DIR) / f"{interview_id}.json").exists():
         raise HTTPException(status_code=404, detail=f"no saved interview state for {interview_id}")
@@ -223,12 +223,12 @@ def reject_draft(draft_id: str, body: dict | None = Body(default=None), x_admin_
 # ---------- contract lifecycle (addendum P3) ----------
 
 @router.get("/api/lifecycle")
-def lifecycle():
+def lifecycle(company_id: str | None = None):
     """Stage of every contract and pending draft: drafted, approved, baselined, kept or broken, renegotiated."""
-    s = _settings()
+    s = _settings(company_id)
     contracts = _contracts()
-    found = dr.findings(contracts, _events(), s) if s["drift_enabled"] else []
-    return lc.contract_stages(contracts, cd.load_drafts(status="draft"), found, fb.load_filed(), s,
+    found = dr.findings(contracts, _events(company_id), s) if s["drift_enabled"] else []
+    return lc.contract_stages(contracts, cd.load_drafts(status="draft"), found, fb.load_filed(company_id), s,
                               dr.load_legacy_events())
 
 

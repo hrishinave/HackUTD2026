@@ -125,3 +125,22 @@ def test_session_round_trips_through_dict():
     r = InterviewSession.from_dict(s.to_dict(), brief="BRIEF", bank=BANK)
     assert r.state() == s.state() and r.begin_call() == s.begin_call()
     assert r.apply_questions([new("What next?", "C-01.exceptions")], 70_000, 61_000)[0]["id"] == "Q-2"
+
+
+def test_bank_pick_without_bank_keeps_model_wording_or_is_dropped():
+    s = InterviewSession("INT-01", "billing_clerk_2", brief="B", bank={}, plan=["Plan?"])
+    q = s.apply_questions([{"source": "bank", "bank_id": "PQ-07", "cue": "Gap:", "text": "Where does the auth number go?",
+                            "target": "x", "reason": "r"}], 1, 0)
+    assert q[0]["bank_id"] is None and q[0]["text"] == "Where does the auth number go?" and q[0]["audio_url"] is None
+
+
+def test_non_demo_session_has_no_slots_and_says_so():
+    s = InterviewSession("INT-09", "billing_clerk_2", brief="B", bank={}, plan=["Walk me through a typical day as Dispatcher."],
+                         company_id="acme")
+    assert s.slot_ids == [] and s.relevant_contracts == [] and s.label == "billing_clerk_2"
+    text, _ = s.build_input()
+    assert "no contract slots" in text and "Nothing has been said yet" in text and "C-01" not in text
+    s.add_utterance("hi", 1000)
+    assert "Nothing has been said yet" not in s.build_input()[0]
+    r = InterviewSession.from_dict(s.to_dict(), brief="B", bank={})
+    assert r.company_id == "acme" and r.slot_ids == []

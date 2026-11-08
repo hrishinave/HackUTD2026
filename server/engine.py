@@ -22,16 +22,18 @@ def _norm(text: str) -> str:
 
 
 class InterviewSession:
-    def __init__(self, interview_id: str, interviewee: str, brief: str, bank: dict, plan: list[str] | None = None):
+    def __init__(self, interview_id: str, interviewee: str, brief: str, bank: dict, plan: list[str] | None = None,
+                 company_id: str | None = None):
         self.interview_id = interview_id
         self.interviewee = interviewee
         self.person_name = ""
         self.position = ""
-        self.company_id = "medicare_billing_demo"
-        self.company_name = "Medicare Billing Office"
+        self.company_id = company_id or kb.DEMO_COMPANY_ID
+        self.company_name = kb.DEMO_COMPANY_NAME if kb.is_demo(company_id) else self.company_id
         self.brief = brief
         self.bank = bank
-        person = kb.load_people().get(interviewee, {})
+        # only the demo company has kb/people.json entries, contracts and slots
+        person = kb.load_people().get(interviewee, {}) if kb.is_demo(company_id) else {}
         self.label = person.get("label", interviewee)
         self.plan = list(plan) if plan is not None else list(person.get("plan", []))
         slots = kb.load_slots()
@@ -72,10 +74,13 @@ class InterviewSession:
         events =[(u["t_ms"], 0, f"[{mmss(u['t_ms'])}] {u['text']}") for u in self.transcript]
         events += [(p["played_at"], 1, f"[{p['id']} played at {mmss(p['played_at'])}]") for p in self.played]
         lines = ["<transcript>"] + [e[2] for e in sorted(events, key=lambda e: (e[0], e[1]))] + ["</transcript>"]
-        lines.append("Slot status:")
-        lines += [f"{sid}: {'filled' if sid in self.slot_fills else 'open'}" for sid in self.slot_ids]
-        used = sorted({q["bank_id"] for q in self.played + self.queue if q.get("bank_id")})
-        lines.append("Bank IDs used: " + (", ".join(used) if used else "none"))
+        if self.slot_ids:
+            lines.append("Slot status:")
+            lines += [f"{sid}: {'filled' if sid in self.slot_fills else 'open'}" for sid in self.slot_ids]
+        else:
+            lines.append("Slot status: no contract slots for this interview.")
+        if not self.transcript:
+            lines.append("Nothing has been said yet: the interview is about to start. Suggest opening questions.")
         return "\n".join(lines), max(self.last_utterance_t, 0)
 
     # --- questions ----------------------------------------------------------------
@@ -84,7 +89,10 @@ class InterviewSession:
         if item.get("source") == "bank":
             entry = self.bank.get(item.get("bank_id") or "")
             if not entry:
-                return None
+                if not (item.get("text") or "").strip():
+                    return None
+                item = {**item, "source": "new", "bank_id": None}  # no bank: keep the model's own wording
+                return self._resolve(item)
             return {"bank_id": item["bank_id"], "cue": entry["cue"], "text": entry["text"], "target": entry["target"],
                     "reason": item.get("reason", ""), "audio_url": f"/clips/{item['bank_id']}.mp3"}
         return {"bank_id": None, "cue": item.get("cue", "Follow-up:"), "text": (item.get("text") or "").strip(),
@@ -204,7 +212,8 @@ class InterviewSession:
 
     @classmethod
     def from_dict(cls, d: dict, brief: str, bank: dict) -> "InterviewSession":
-        s = cls(d["interview_id"], d["interviewee"], brief=brief, bank=bank, plan=d.get("plan"))
+        s = cls(d["interview_id"], d["interviewee"], brief=brief, bank=bank, plan=d.get("plan"),
+                company_id=d.get("company_id"))
         for k in cls._FIELDS:
             if k in d:
                 setattr(s, k, d[k])

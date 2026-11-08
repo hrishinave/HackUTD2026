@@ -23,12 +23,40 @@ ENVELOPE = set(CATALOG["envelope"]) | {"week"}
 _file_lock = Lock()
 
 
+DEMO_COMPANY = {"id": "medicare_billing_demo", "name": "Medicare Billing Office"}
+STATE_DIR = ROOT / "data" / "state"   # read at call time; tests patch it
+
+
+def _saved_states() -> dict[str, dict]:
+    """{interview_id: state} for saved INT-* states, then running sessions (which win)."""
+    states = {}
+    state_dir = Path(STATE_DIR)
+    if state_dir.is_dir():
+        for path in sorted(state_dir.glob("INT-*.json")):
+            try:
+                raw = json.loads(path.read_text(encoding="utf-8"))
+                states[path.stem] = raw.get("state", raw) if isinstance(raw, dict) else {}
+            except (OSError, ValueError, TypeError):
+                continue
+    try:
+        from server import routes_engine
+        for interview_id, runner in list(routes_engine.sessions.items()):
+            states[interview_id] = runner.session.state()
+    except Exception:
+        pass
+    return states
+
+
 @router.get("/api/interview-options")
 def interview_options():
-    """Return companies and their interviewable people for the board start flow."""
+    """Return companies and their interviewable people for the board start flow.
+
+    The built-in demo company comes first with its kb/people.json people; then every other company found in
+    saved or running interviews (by company_id, deduplicated), with the people interviewed there.
+    """
     people_path = ROOT / "kb" / "people.json"
     people = json.loads(people_path.read_text(encoding="utf-8")) if people_path.exists() else {}
-    company = {"id": "medicare_billing_demo", "name": "Medicare Billing Office", "people": []}
+    company = {**DEMO_COMPANY, "people": []}
     for person_id, person in sorted(people.items()):
         company["people"].append({
             "id": person_id,
@@ -36,13 +64,24 @@ def interview_options():
             "role": person.get("role", ""),
             "interview_id": person.get("interview_id", ""),
         })
-    return {"companies": [company]}
+    others: dict[str, dict] = {}
+    for interview_id, state in sorted(_saved_states().items()):
+        cid = str(state.get("company_id") or "").strip()
+        if not cid or cid == DEMO_COMPANY["id"]:
+            continue
+        entry = others.setdefault(cid, {"id": cid, "name": "", "people": []})
+        entry["name"] = str(state.get("company_name") or "").strip() or entry["name"] or cid
+        name = str(state.get("person_name") or state.get("label") or "").strip()
+        if name and all(p["label"] != name for p in entry["people"]):
+            entry["people"].append({"id": state.get("interviewee", ""), "label": name,
+                                    "role": state.get("position", ""), "interview_id": interview_id})
+    return {"companies": [company] + sorted(others.values(), key=lambda c: c["name"].lower())}
 
 
 @router.get("/api/interviews")
 def interviews():
     """List saved and currently running interviews for the board selector."""
-    state_dir = ROOT / "data" / "state"
+    state_dir = Path(STATE_DIR)
     saved = {}
     if state_dir.is_dir():
         for path in state_dir.glob("INT-*.json"):
@@ -54,7 +93,8 @@ def interviews():
                     "label": state.get("label") or state.get("interviewee") or path.stem,
                     "person_name": state.get("person_name", state.get("label", "")),
                     "position": state.get("position", ""),
-                    "company_name": state.get("company_name", ""),
+                    "company_id": state.get("company_id", ""),
+                "company_name": state.get("company_name", ""),
                     "interviewee": state.get("interviewee", ""),
                     "started": True,
                     "updated_at": path.stat().st_mtime,
@@ -70,6 +110,7 @@ def interviews():
                 "label": state.get("label") or state.get("interviewee") or interview_id,
                 "person_name": state.get("person_name", state.get("label", "")),
                 "position": state.get("position", ""),
+                "company_id": state.get("company_id", ""),
                 "company_name": state.get("company_name", ""),
                 "interviewee": state.get("interviewee", ""),
                 "started": True,

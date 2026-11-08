@@ -125,3 +125,32 @@ def test_eval_reads_wrapped_state_files(api, tmp_path):
     wrapped = {"state": json.loads(FIXTURE_STATE.read_text()), "counters": {"calls": 3}}
     (tmp_path / "state" / "INT-01.json").write_text(json.dumps(wrapped))
     assert api.get("/api/eval").json()["rules_found"] == ["PA-SCAN", "RETRO-ELIG", "TF-365"]
+
+
+# filing, lifecycle and sf-requirement per company
+
+def test_filing_is_per_company(api, tmp_path, monkeypatch):
+    from server import feedback as fb
+    monkeypatch.setattr(fb, "FILED_PATH", tmp_path / "filed_feedback.json")
+    _on(send_to_sf=True)
+    st.save_settings({"drift_enabled": True, "send_to_sf": True}, actor="test", company_id="acme")
+    assert api.post("/api/findings/F-01/file?company_id=beta").status_code == 403   # beta never allowed sending
+    first = api.post("/api/findings/F-01/file").json()
+    assert first["feedback_number"] == 123 and first["already_filed"] is False
+    assert api.post("/api/findings/F-01/file").json()["already_filed"] is True
+    assert api.get("/api/filed?company_id=acme").json() == {}
+    acme = api.post("/api/findings/F-01/file?company_id=acme").json()
+    assert acme["already_filed"] is False and acme["feedback_number"] == 124
+    assert set(api.get("/api/filed").json()) == {"F-01"} and set(api.get("/api/filed?company_id=acme").json()) == {"F-01"}
+    assert (tmp_path / "clients" / "acme" / "filed_feedback.json").exists()
+    assert api.get("/api/lifecycle").json()["C-01"]["stages"]["renegotiated"] is True
+    assert api.get("/api/lifecycle?company_id=beta").json()["C-01"]["stages"]["renegotiated"] is False
+    assert api.get("/api/lifecycle?company_id=beta").json()["C-01"]["detail"]["watching"] == "off"
+
+
+def test_sf_requirement_scoped_by_company(api):
+    _on()
+    default = api.get("/api/contracts/C-01/sf-requirement")
+    other = api.get("/api/contracts/C-01/sf-requirement?company_id=beta")
+    assert default.status_code == other.status_code == 200
+    assert default.text != other.text   # drift on by default only: the default doc has the proposed change
