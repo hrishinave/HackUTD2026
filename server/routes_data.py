@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from server import contract_draft as cd
 from server import contracts as ct
 from server import drift as dr
+from server import feedback as fb
 from server import settings as st
 from server import simulate as sim
 from server.contracts import load_catalog
@@ -120,6 +121,27 @@ def sf_payload(finding_id: str):
     raise HTTPException(status_code=404, detail=f"unknown finding: {finding_id}")
 
 
+def _find(finding_id: str, s: dict) -> dict:
+    for f in dr.findings(_contracts(), _events(), s):
+        if f["id"] == finding_id:
+            return f
+    raise HTTPException(status_code=404, detail=f"unknown finding: {finding_id}")
+
+
+@router.post("/api/findings/{finding_id}/file")
+def file_finding(finding_id: str):
+    """File a finding to the local stub once; a second call returns the same number. Simulated, no live connection."""
+    s = _settings()
+    if not s["send_to_sf"]:
+        raise HTTPException(status_code=403, detail="sending to Software Factory is turned off in Client settings")
+    return fb.file_finding(_find(finding_id, s), _stub)
+
+
+@router.get("/api/filed")
+def get_filed():
+    return fb.load_filed()
+
+
 @router.post("/stub/v2/reporting-api/feedback")
 async def feedback_stub(request: Request):
     """Local stand-in for 8090's Feedback Integration API. Simulated, no live connection."""
@@ -131,9 +153,7 @@ async def feedback_stub(request: Request):
     if errors:
         return JSONResponse(status_code=422, content={"detail": {
             "error_code": "unprocessable_entity", "message": "invalid feedback payload", "details": errors}})
-    n = _stub["next"]
-    _stub["next"] = n + 1
-    return {"feedback_number": n}
+    return {"feedback_number": fb.next_feedback_number(_stub)}
 
 
 # ---------- contract drafting (Task D5) ----------
