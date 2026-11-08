@@ -315,6 +315,14 @@ async def start_interview(interview_id: str, body: dict = Body(default={})):
         runner = _create_session(interview_id, interviewee)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"unknown interviewee: {interviewee}")
+    person_name = str(body.get("person_name", "")).strip()
+    position = str(body.get("position", "")).strip()
+    if person_name:
+        runner.session.person_name = person_name
+        runner.session.label = person_name
+    if position:
+        runner.session.position = position
+    runner.session.company_id = str(body.get("company_id", "medicare_billing_demo"))
     warm = "ok"
     try:
         await llm.warm_up(runner.session.brief)

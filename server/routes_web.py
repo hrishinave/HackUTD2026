@@ -52,6 +52,8 @@ def interviews():
                 saved[path.stem] = {
                     "interview_id": path.stem,
                     "label": state.get("label") or state.get("interviewee") or path.stem,
+                    "person_name": state.get("person_name", state.get("label", "")),
+                    "position": state.get("position", ""),
                     "interviewee": state.get("interviewee", ""),
                     "started": True,
                     "updated_at": path.stat().st_mtime,
@@ -65,6 +67,8 @@ def interviews():
             saved[interview_id] = {
                 "interview_id": interview_id,
                 "label": state.get("label") or state.get("interviewee") or interview_id,
+                "person_name": state.get("person_name", state.get("label", "")),
+                "position": state.get("position", ""),
                 "interviewee": state.get("interviewee", ""),
                 "started": True,
                 "updated_at": None,

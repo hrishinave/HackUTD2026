@@ -52,7 +52,8 @@
         return;
       }
       for (const interview of interviews) {
-        const option = element("option", interview.interview_id + " · " + (interview.label || interview.interviewee || "Interview"));
+        const identity = interview.person_name || interview.label || interview.interviewee || "Interview";
+        const option = element("option", interview.interview_id + " · " + identity + (interview.position ? " · " + interview.position : ""));
         option.value = interview.interview_id;
         picker.append(option);
       }
@@ -64,8 +65,7 @@
 
   async function loadInterviewOptions() {
     const companyPicker = byId("company-picker");
-    const personPicker = byId("person-picker");
-    if (!companyPicker || !personPicker) return;
+    if (!companyPicker) return;
     try {
       const response = await fetch(useMocks ? "/static/mock/interview-options.json" : "/api/interview-options", { cache: "no-store" });
       if (!response.ok) throw new Error("Interview options unavailable");
@@ -74,24 +74,10 @@
         const option = element("option", company.name); option.value = company.id; return option;
       }));
       companyPicker.value = selectedCompany;
-      const refreshPeople = () => {
-        const company = (data.companies || []).find((item) => item.id === companyPicker.value);
-        personPicker.replaceChildren(...(company?.people || []).map((person) => {
-          const option = element("option", person.label + " · " + person.role.replaceAll("_", " ")); option.value = person.id; option.dataset.interviewId = person.interview_id; return option;
-        }));
-        if ([...personPicker.options].some((option) => option.value === selectedPerson)) personPicker.value = selectedPerson;
-        else selectedPerson = personPicker.value;
-      };
-      companyPicker.addEventListener("change", () => { selectedCompany = companyPicker.value; refreshPeople(); });
-      personPicker.addEventListener("change", () => {
-        selectedPerson = personPicker.value;
-        const option = personPicker.selectedOptions[0];
-        if (option?.dataset.interviewId) selectedInterview = option.dataset.interviewId;
-      });
-      refreshPeople();
+      companyPicker.addEventListener("change", () => { selectedCompany = companyPicker.value; });
     } catch {
       companyPicker.replaceChildren(element("option", "Could not load companies"));
-      personPicker.replaceChildren(element("option", "Could not load people"));
+      byId("person-name").placeholder = "Enter person's name";
     }
   }
 
@@ -100,8 +86,10 @@
     button.disabled = true;
     const next = "INT-" + String(Date.now()).slice(-2);
     try {
-      if (!selectedPerson) throw new Error("Choose a person before starting the interview");
-      const response = await fetch("/api/interviews/" + next + "/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ interviewee: selectedPerson, company_id: selectedCompany }) });
+      const personName = byId("person-name").value.trim();
+      const personPosition = byId("person-position").value.trim();
+      if (!personName || !personPosition) throw new Error("Enter the person's name and position before starting");
+      const response = await fetch("/api/interviews/" + next + "/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ interviewee: selectedPerson, company_id: selectedCompany, person_name: personName, position: personPosition }) });
       if (!response.ok) throw new Error("Could not start the interview");
       selectedInterview = next;
       await loadInterviewList();

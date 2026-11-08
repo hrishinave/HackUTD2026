@@ -25,6 +25,9 @@ class InterviewSession:
     def __init__(self, interview_id: str, interviewee: str, brief: str, bank: dict, plan: list[str] | None = None):
         self.interview_id = interview_id
         self.interviewee = interviewee
+        self.person_name = ""
+        self.position = ""
+        self.company_id = "medicare_billing_demo"
         self.brief = brief
         self.bank = bank
         person = kb.load_people().get(interviewee, {})
@@ -188,7 +191,7 @@ class InterviewSession:
 
     # --- persistence --------------------------------------------------------------
 
-    _FIELDS = ("interviewee", "label", "plan", "relevant_contracts", "slot_ids", "transcript", "last_utterance_t",
+    _FIELDS = ("interviewee", "person_name", "position", "company_id", "label", "plan", "relevant_contracts", "slot_ids", "transcript", "last_utterance_t",
                "last_called_t", "q_counter", "plan_index", "questions", "queue", "based_on_t_ms", "played",
                "slot_fills", "contradictions")
 
@@ -227,6 +230,9 @@ class InterviewSession:
         return {
             "interview_id": self.interview_id,
             "interviewee": self.interviewee,
+            "person_name": self.person_name,
+            "position": self.position,
+            "company_id": self.company_id,
             "label": self.label,
             "transcript": list(self.transcript),
             "queue": list(self.queue),
