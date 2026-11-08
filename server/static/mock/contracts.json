@@ -1,0 +1,83 @@
+[
+  {
+    "id": "C-01",
+    "requirement": {"id": "R-01", "statement": "Every claim that needs prior authorization records the authorization number in its own field.", "feature": "Claim submission"},
+    "role": "billing_clerk", "signal": "field_usage",
+    "population": {"description": "Submitted claims whose procedure requires prior authorization", "filter": {"requires_prior_auth": true}},
+    "expectations": [
+      {"metric_id": "pa_field_fill_rate", "description": "Share of prior-auth claims with the prior-auth field filled", "template": "field_fill_rate", "params": {"event": "claim_submitted", "flag": "prior_auth_number_filled"}, "comparator": ">=", "target": 0.95, "unit": "share", "tolerance": 0.05},
+      {"metric_id": "pa_in_notes_rate", "description": "Share of prior-auth claims with an auth number typed into notes", "template": "detector_rate", "params": {"event": "claim_submitted", "tag": "auth_number"}, "comparator": "<=", "target": 0.05, "unit": "share", "tolerance": 0.05}
+    ],
+    "window": {"period": "week", "min_tasks": 30, "min_people": 5, "learning_period_weeks": 2, "consecutive_breaches_for_drift": 2},
+    "baseline": {"source": "legacy_logs", "values": {"pa_in_notes_rate": 0.71}, "note": "PA-SCAN read notes rather than a dedicated authorization field."},
+    "events_required": ["claim_submitted", "claim_tab_viewed", "ui_click"],
+    "related_detectors": ["notes_pattern:auth_number", "tab_views:authorization", "dead_clicks:authorization_tab"],
+    "evidence": [
+      {"quote": "If it needs prior auth I put the number in the notes, or sometimes just 'see fax'.", "speaker": "Billing clerk 2", "interview_id": "INT-01", "timestamp": "14:32", "question_id": "Q-12", "question_origin": "ai"},
+      {"quote": "Pretty much every imaging claim for Medicare Advantage needs one.", "speaker": "Billing clerk 2", "interview_id": "INT-01", "timestamp": "14:51", "question_id": "Q-14", "question_origin": "ai"}
+    ],
+    "code_refs": [{"file": "legacy/CLMEDIT.cbl", "rule_id": "PA-SCAN"}],
+    "confidence": {"level": "high", "said": true, "did": true, "code": true, "note": "Said, done and coded all agree. The workaround exists because the code required it."},
+    "criticality": "high", "status": "learning",
+    "cost_model": {"unit_cost_usd": 180, "per": "claim at risk of denial for missing prior auth", "basis": "Planted average claim value", "demo_value": true}
+  },
+  {
+    "id": "C-02",
+    "requirement": {"id": "R-02", "statement": "A billing clerk can submit a routine clean claim in about five minutes or less.", "feature": "Claim submission"},
+    "role": "billing_clerk", "signal": "time",
+    "population": {"description": "Claims submitted clean on the first pass", "filter": {"first_pass_clean": true}},
+    "expectations": [{"metric_id": "median_submit_seconds", "description": "Median time from opening a claim to submitting it", "template": "median_duration", "params": {"start_event": "claim_opened", "end_event": "claim_submitted"}, "comparator": "<=", "target": 300, "unit": "seconds", "tolerance": 75}],
+    "window": {"period": "week", "min_tasks": 30, "min_people": 5, "learning_period_weeks": 2, "consecutive_breaches_for_drift": 2},
+    "baseline": {"source": "both", "values": {"median_submit_seconds": 260}, "note": "Clerks estimated about four minutes; legacy logs show a 260 s median."},
+    "events_required": ["claim_opened", "claim_submitted"],
+    "related_detectors": ["frustration:repeated_field_edits", "routes:search_to_claim"],
+    "evidence": [{"quote": "A normal claim takes me maybe four minutes if nothing's weird.", "speaker": "Billing clerk 1", "interview_id": "INT-02", "timestamp": "06:10", "question_id": null, "question_origin": "interviewer"}],
+    "confidence": {"level": "medium", "said": true, "did": true, "code": false, "note": "Time is behaviour, not a coded rule."},
+    "criticality": "medium", "status": "learning",
+    "cost_model": {"unit_cost_usd": 0.75, "per": "extra clerk minute", "basis": "Planted loaded labour cost of $45/hour", "demo_value": true}
+  },
+  {
+    "id": "C-03",
+    "requirement": {"id": "R-03", "statement": "Clerks finish a claim in one sitting without repeatedly reopening it.", "feature": "Claim submission"},
+    "role": "billing_clerk", "signal": "path",
+    "population": {"description": "All submitted claims", "filter": {}},
+    "expectations": [{"metric_id": "multi_reopen_rate", "description": "Share of claims reopened more than once before submission", "template": "path_conformance", "params": {"task_start": "claim_opened", "task_end": "claim_submitted", "loop_event": "claim_reopened", "max_loops": 1}, "comparator": "<=", "target": 0.1, "unit": "share", "tolerance": 0.05}],
+    "window": {"period": "week", "min_tasks": 30, "min_people": 5, "learning_period_weeks": 2, "consecutive_breaches_for_drift": 2},
+    "baseline": {"source": "legacy_logs", "values": {"multi_reopen_rate": 0.06}, "note": "Legacy users rarely reopened a claim more than once."},
+    "events_required": ["claim_opened", "claim_reopened", "claim_submitted"],
+    "related_detectors": ["frustration:rage_clicks", "frustration:form_abandon"],
+    "evidence": [{"quote": "If I have to open a claim twice, something went wrong.", "speaker": "Billing clerk 1", "interview_id": "INT-02", "timestamp": "09:44", "question_id": "Q-05", "question_origin": "ai"}],
+    "confidence": {"level": "medium", "said": true, "did": true, "code": false, "note": "Behavioural expectation backed by logs."},
+    "criticality": "medium", "status": "learning",
+    "cost_model": {"unit_cost_usd": 2.25, "per": "extra reopen (about 3 clerk minutes)", "basis": "Planted labour cost", "demo_value": true}
+  },
+  {
+    "id": "C-04",
+    "requirement": {"id": "R-04", "statement": "When a patient's coverage changes after the date of service, eligibility is re-checked before the claim goes out.", "feature": "Eligibility changes"},
+    "role": "billing_clerk", "signal": "sequence",
+    "population": {"description": "Coverage changes that land after a visit has been billed or is about to be", "filter": {"after_date_of_service": true}},
+    "expectations": [{"metric_id": "recheck_within_48h_rate", "description": "Share of post-visit coverage changes followed by an eligibility check within 48 hours", "template": "followup_within", "params": {"trigger_event": "coverage_changed", "followup_event": "eligibility_checked", "within_hours": 48}, "comparator": ">=", "target": 0.9, "unit": "share", "tolerance": 0.1}],
+    "window": {"period": "week", "min_tasks": 30, "min_people": 5, "learning_period_weeks": 2, "consecutive_breaches_for_drift": 2},
+    "baseline": {"source": "legacy_logs", "values": {"recheck_within_48h_rate": 0.83}, "note": "RETRO-ELIG pushed these claims into a clerk's queue."},
+    "events_required": ["coverage_changed", "eligibility_checked"], "related_detectors": [],
+    "evidence": [{"quote": "Oh, that. If coverage changes after the visit, it lands in my queue and I re-run eligibility.", "speaker": "Billing clerk 2", "interview_id": "INT-01", "timestamp": "21:05", "question_id": "Q-19", "question_origin": "ai"}],
+    "code_refs": [{"file": "legacy/CLMEDIT.cbl", "rule_id": "RETRO-ELIG"}],
+    "confidence": {"level": "high", "said": true, "did": true, "code": true, "note": "An AI code-gap question surfaced this rule."},
+    "criticality": "high", "status": "learning",
+    "cost_model": {"unit_cost_usd": 180, "per": "claim billed against the wrong coverage", "basis": "Planted average claim value", "demo_value": true}
+  },
+  {
+    "id": "C-05",
+    "requirement": {"id": "R-05", "statement": "Denials are tracked inside the system, so no side spreadsheet is needed.", "feature": "Denial management"},
+    "role": "denial_specialist", "signal": "absence",
+    "population": {"description": "Denial specialists' working weeks", "filter": {}},
+    "expectations": [{"metric_id": "denial_export_rate", "description": "Exports of the denials list to CSV per person per week", "template": "rate_per_person_week", "params": {"event": "export_csv", "where": {"source_view": "denials"}}, "comparator": "<=", "target": 1, "unit": "per_person_week", "tolerance": 1}],
+    "window": {"period": "week", "min_tasks": 5, "min_people": 5, "learning_period_weeks": 2, "consecutive_breaches_for_drift": 2},
+    "baseline": {"source": "legacy_logs", "values": {"denial_export_rate": 6.2}, "note": "Legacy users exported the denials list about six times a week into a shared spreadsheet."},
+    "events_required": ["export_csv"], "related_detectors": ["ghost_features:denial_tracker"],
+    "evidence": [{"quote": "We keep a spreadsheet of every denial because the system loses track of them after a month.", "speaker": "Denial specialist 1", "interview_id": "INT-03", "timestamp": "03:27", "question_id": null, "question_origin": "unprompted"}],
+    "confidence": {"level": "medium", "said": true, "did": true, "code": false, "note": "A workaround; the new denial tracker should replace it."},
+    "criticality": "medium", "status": "learning",
+    "cost_model": {"unit_cost_usd": 12, "per": "manual spreadsheet update", "basis": "Planted labour cost", "demo_value": true}
+  }
+]

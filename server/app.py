@@ -9,6 +9,7 @@ for d in ["data", "data/clips", "data/state"]:
     os.makedirs(d, exist_ok=True)
 app = FastAPI(title="Fit Check")
 app.mount("/static", StaticFiles(directory="server/static"), name="static")
+app.mount("/clips", StaticFiles(directory="data/clips"), name="clips")
 app.include_router(routes_engine.router)
 app.include_router(routes_data.router)
 app.include_router(routes_web.router)
