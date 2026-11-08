@@ -1,0 +1,7 @@
+{
+  "C-01": ["population", "current_practice", "frequency", "exceptions", "consequence"],
+  "C-02": ["current_practice", "duration", "exceptions"],
+  "C-03": ["current_practice", "reopen_reasons"],
+  "C-04": ["trigger", "current_practice", "timing"],
+  "C-05": ["current_practice", "tool_used", "frequency"]
+}
